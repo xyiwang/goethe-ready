@@ -68,6 +68,7 @@ function App() {
       <GrammarPage
         messages={messages}
         locale={locale}
+        language={language}
         setLocale={setLocale}
         onBack={() => setRoute('dashboard')}
       />
