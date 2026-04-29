@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
+import { PLAN_STORAGE_KEY, generatePlan, todayYmd } from '../utils/planGenerator.js'
 
 const LEVEL_IDS = ['beginner', 'a1a2', 'b1']
 
@@ -25,10 +26,22 @@ export function HomePage({ messages, locale, setLocale, onNavigateToDashboard })
 
   const handleStart = () => {
     if (!canSubmit || !levelId) return
+    const generatedPlan = generatePlan(daysNum, levelId)
+    const startDate = todayYmd()
+    const payload = {
+      days: daysTrim,
+      level: levelId,
+      levelLabel: getLevelLabel(levelId),
+      plan: generatedPlan,
+      startDate,
+    }
+    localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(payload))
     onNavigateToDashboard({
       days: daysTrim,
       levelId,
       levelLabel: getLevelLabel(levelId),
+      plan: generatedPlan,
+      startDate,
     })
   }
 

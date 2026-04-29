@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
 import * as checkin from '../utils/checkin.js'
-
-/** 周一、三、五显示写作任务 */
-function isWritingDay(date = new Date()) {
-  const day = date.getDay()
-  return day === 1 || day === 3 || day === 5
-}
+import {
+  PLAN_STORAGE_KEY,
+  generatePlan,
+  getDayIndex,
+  getTodayTasks,
+} from '../utils/planGenerator.js'
 
 const TASK_IDS = ['vocab', 'grammar', 'listening', 'writing']
 
@@ -49,23 +49,52 @@ export function DashboardPage({
   const levelDisplay = (levelId && h.levels[levelId]) || levelLabel
 
   const todayStr = useMemo(() => checkin.ymd(new Date()), [])
-  const showWriting = useMemo(() => isWritingDay(new Date()), [])
+  const storedStudyPlan = useMemo(() => {
+    if (typeof localStorage === 'undefined') return null
+    try {
+      const raw = localStorage.getItem(PLAN_STORAGE_KEY)
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  }, [])
+
+  const activePlan = useMemo(() => {
+    return storedStudyPlan?.plan ?? generatePlan(days, levelId)
+  }, [days, levelId, storedStudyPlan])
+
+  const dayIndex = useMemo(() => {
+    return storedStudyPlan?.startDate ? getDayIndex(storedStudyPlan.startDate) : 1
+  }, [storedStudyPlan])
+
+  const todayPlan = useMemo(() => getTodayTasks(activePlan, dayIndex), [activePlan, dayIndex])
 
   const taskDefs = useMemo(() => {
     const taskMsgs = d.tasks
-    return TASK_IDS.filter((id) => id !== 'writing' || showWriting).map((id) => {
+    const ids = TASK_IDS.filter((id) => {
+      if (id === 'vocab') return todayPlan.todayVocab > 0
+      if (id === 'grammar') return todayPlan.todayGrammar
+      if (id === 'listening') return todayPlan.todayListening
+      if (id === 'writing') return todayPlan.todayWriting
+      return true
+    })
+
+    return ids.map((id) => {
       const t = taskMsgs[id]
       return {
         id,
         icon: TASK_ICONS[id],
         title: t.title,
-        description: t.description,
+        description:
+          id === 'vocab'
+            ? d.vocabTodayDescription.replace('{n}', String(todayPlan.todayVocab))
+            : t.description,
         isMakeup: false,
         rowKey: id,
         baseId: id,
       }
     })
-  }, [showWriting, d.tasks])
+  }, [d.tasks, d.vocabTodayDescription, todayPlan])
 
   const makeupRaw = useMemo(() => {
     const map = checkin.getMakeupByDate()
@@ -133,10 +162,9 @@ export function DashboardPage({
   const completed = allRows.filter((t) => done[t.rowKey]).length
   const allDone = total > 0 && completed === total
 
-  const daysNum = parseInt(String(days).trim(), 10)
-  const daysDisplay = Number.isNaN(daysNum) ? days : daysNum
-  const isSprint =
-    typeof daysNum === 'number' && !Number.isNaN(daysNum) && daysNum <= 7 && daysNum >= 0
+  const remainingDays = Math.max(0, activePlan.days - dayIndex + 1)
+  const daysDisplay = Number.isNaN(remainingDays) ? days : remainingDays
+  const isSprint = todayPlan.isSprintMode
 
   const todayRecord = checkin.getDailyRecords()[todayStr]
 

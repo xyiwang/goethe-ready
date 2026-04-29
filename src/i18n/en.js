@@ -37,6 +37,7 @@ export default {
       "You haven't checked in for 3 days. Reset your plan to reduce daily load?",
     resetPlan: 'Reset plan',
     continuePlan: 'Keep current plan',
+    vocabTodayDescription: 'Learn {n} new words',
     tasks: {
       vocab: {
         title: 'Vocabulary',

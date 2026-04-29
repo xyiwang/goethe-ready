@@ -35,6 +35,7 @@ export default {
     streakModalBody: '你已经3天没有打卡了，要重置计划减少每日任务量吗？',
     resetPlan: '重置计划',
     continuePlan: '继续原计划',
+    vocabTodayDescription: '学习 {n} 个新词',
     tasks: {
       vocab: {
         title: '词汇',
