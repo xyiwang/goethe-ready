@@ -88,7 +88,7 @@ export default {
     tipsTitle: 'Exam tips',
     tipsShow: 'Expand',
     tipsHide: 'Collapse',
-    resourcesTitle: 'Extended Learning',
+    resourcesTitle: '📚 Extended Learning',
     levelExcellent: 'Excellent',
     levelGood: 'Good',
     levelNeedImprove: 'Needs improvement',

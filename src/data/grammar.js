@@ -716,14 +716,16 @@ const grammarPoints = [
 
 const DEFAULT_RESOURCES = [
   {
+    name: 'Deutsche Welle 练习',
     name_zh: 'Deutsche Welle 练习',
     name_en: 'Deutsche Welle Practice',
-    url: 'https://learngerman.dw.com',
+    url: 'https://learngerman.dw.com/en/learn-german/s-1/c-19283582',
   },
   {
+    name: 'Schubert Verlag 在线题库',
     name_zh: 'Schubert Verlag 在线题库',
     name_en: 'Schubert Verlag B1 Exercises',
-    url: 'https://www.schubert-verlag.de/aufgaben/uebungen_b1',
+    url: 'https://www.schubert-verlag.de/aufgaben/uebungen_b1/b1_uebungen_index.htm',
   },
 ]
 
@@ -903,4 +905,44 @@ function enrichPoint(point) {
   }
 }
 
-export default grammarPoints.map(enrichPoint)
+const ORDERED_TITLES = [
+  // 基础
+  'Modalverben',
+  'Trennbare Verben',
+  'Perfekt vs Praeteritum',
+  'Wortstellung',
+  'Reflexive Verben',
+  // 中级
+  'Temporale Konnektoren (als / wenn / waehrend / bevor / nachdem / seitdem)',
+  'Kausale Konnektoren (weil / da / denn / deshalb / deswegen)',
+  'Komparativ und Superlativ',
+  'Adjektivdeklination',
+  'Praepositionen mit Kasus',
+  // 进阶
+  'Relativsaetze',
+  'Passiv',
+  'Konzessive Konnektoren (obwohl / trotzdem / dennoch)',
+  'Infinitivkonstruktionen um...zu / ohne...zu / anstatt...zu',
+  'Zweiteilige Konnektoren (sowohl...als auch / entweder...oder / weder...noch / zwar...aber)',
+  // 冲刺
+  'Konjunktiv II',
+  'Indirekte Rede',
+  'Genitivkonstruktionen',
+  'Futur I',
+  'n-Deklination',
+]
+
+const enrichedByTitle = new Map(grammarPoints.map((p) => [p.title, enrichPoint(p)]))
+
+const ordered = ORDERED_TITLES.map((title, idx) => {
+  const item = enrichedByTitle.get(title)
+  if (!item) {
+    throw new Error(`Missing grammar point for title: ${title}`)
+  }
+  return {
+    ...item,
+    id: idx + 1,
+  }
+})
+
+export default ordered

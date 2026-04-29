@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
+import writingTasks from '../data/writing.js'
+import { PLAN_STORAGE_KEY, getDayIndex } from '../utils/planGenerator.js'
 
 function countWords(text) {
   const trimmed = text.trim()
@@ -52,6 +54,29 @@ export function WritingPage({ messages, locale, language = locale, setLocale, on
   const [feedback, setFeedback] = useState(null)
 
   const wordCount = useMemo(() => countWords(essay), [essay])
+  const task = useMemo(() => {
+    const total = writingTasks.length
+    if (!total) return null
+    if (typeof localStorage === 'undefined') return writingTasks[0]
+
+    try {
+      const raw = localStorage.getItem(PLAN_STORAGE_KEY)
+      const payload = raw ? JSON.parse(raw) : null
+      const dayIndex = payload?.startDate ? getDayIndex(payload.startDate) : 1
+      const idx = ((dayIndex - 1) % total + total) % total
+      return writingTasks[idx]
+    } catch {
+      return writingTasks[0]
+    }
+  }, [])
+
+  const promptText = task?.prompt_de ?? w.prompt
+  const checklist = language === 'zh' ? task?.checklist_zh : task?.checklist_en
+  const targetRange = task
+    ? language === 'zh'
+      ? `目标：${task.minWords}-${task.maxWords}词`
+      : `Target: ${task.minWords}-${task.maxWords} words`
+    : w.targetCount
 
   const handleSubmit = async () => {
     const apiKey = import.meta.env.VITE_OPENAI_API_KEY
@@ -65,8 +90,6 @@ export function WritingPage({ messages, locale, language = locale, setLocale, on
     setFeedback(null)
 
     try {
-      console.log('当前语言：', language)
-
       const systemPrompt =
         language === 'en'
           ? `You are a German B1 exam writing coach. Reply strictly in this JSON format:
@@ -88,8 +111,8 @@ All strengths and improvements must be in English.`
 
       const userPrompt =
         language === 'en'
-          ? `Writing task: ${w.prompt}\n\nStudent essay:\n${essay}`
-          : `写作题目：${w.prompt}\n\n学生作文：\n${essay}`
+          ? `Writing task (German): ${promptText}\n\nStudent essay:\n${essay}`
+          : `写作题目（德语）：${promptText}\n\n学生作文：\n${essay}`
 
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -153,9 +176,21 @@ All strengths and improvements must be in English.`
             {w.sectionLabel}
           </p>
           <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-900">{w.title}</h1>
+          {task?.title_zh && task?.title_en && (
+            <p className="mt-2 text-sm font-medium text-slate-700">
+              {language === 'zh' ? task.title_zh : task.title_en}
+            </p>
+          )}
           <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-slate-600">
-            {w.prompt}
+            {promptText}
           </p>
+          {Array.isArray(checklist) && checklist.length > 0 && (
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-600">
+              {checklist.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          )}
         </header>
 
         <textarea
@@ -169,7 +204,7 @@ All strengths and improvements must be in English.`
           <span className="text-slate-500">
             {w.wordCount.replace('{n}', String(wordCount))}
           </span>
-          <span className="font-medium text-slate-400">{w.targetCount}</span>
+          <span className="font-medium text-slate-400">{targetRange}</span>
         </div>
 
         <button

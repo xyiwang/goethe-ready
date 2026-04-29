@@ -240,7 +240,7 @@ export function GrammarPage({ messages, locale, language = locale, setLocale, on
           </footer>
         )}
 
-        {allAnswered && (
+        {allAnswered && Array.isArray(lesson.resources) && lesson.resources.length > 0 && (
           <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-4">
             <h3 className="text-sm font-semibold text-slate-800">{g.resourcesTitle}</h3>
             <ul className="mt-3 space-y-2">
@@ -252,7 +252,9 @@ export function GrammarPage({ messages, locale, language = locale, setLocale, on
                     rel="noreferrer"
                     className="text-sm font-medium text-emerald-700 underline decoration-emerald-300 underline-offset-4 hover:text-emerald-800"
                   >
-                    {language === 'zh' ? res.name_zh : res.name_en}
+                    {language === 'zh'
+                      ? res.name_zh || res.name
+                      : res.name_en || res.name}
                   </a>
                 </li>
               ))}

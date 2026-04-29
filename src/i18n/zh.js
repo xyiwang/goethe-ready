@@ -86,7 +86,7 @@ export default {
     tipsTitle: '考试技巧',
     tipsShow: '点击展开',
     tipsHide: '收起',
-    resourcesTitle: '延伸学习',
+    resourcesTitle: '📚 延伸学习',
     levelExcellent: '优秀',
     levelGood: '良好',
     levelNeedImprove: '需加强',
