@@ -30,6 +30,7 @@ const STREAK_SESSION_KEY = 'goethe-dismiss-streak'
  *   onBack?: () => void
  *   onStartVocab?: () => void
  *   onStartGrammar?: () => void
+ *   onStartWriting?: () => void
  *   onViewProgress?: () => void
  * }} props
  */
@@ -43,6 +44,7 @@ export function DashboardPage({
   onBack,
   onStartVocab,
   onStartGrammar,
+  onStartWriting,
   onViewProgress,
 }) {
   const { dashboard: d, home: h } = messages
@@ -303,6 +305,28 @@ export function DashboardPage({
                 className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
               >
                 {d.startGrammar}
+              </button>
+            </div>
+          )}
+          {!task.isMakeup && task.id === 'writing' && onStartWriting && (
+            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
+              <button
+                type="button"
+                onClick={onStartWriting}
+                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+              >
+                {d.startWriting}
+              </button>
+            </div>
+          )}
+          {task.isMakeup && task.baseId === 'writing' && onStartWriting && (
+            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
+              <button
+                type="button"
+                onClick={onStartWriting}
+                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+              >
+                {d.startWriting}
               </button>
             </div>
           )}

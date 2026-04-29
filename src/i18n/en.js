@@ -26,6 +26,7 @@ export default {
     viewProgress: 'View progress',
     startVocab: 'Start',
     startGrammar: 'Start',
+    startWriting: 'Start',
     doneCheckin: 'Check in for today',
     checkinSuccess: "🎉 Checked in! That's day {n} in a row (all tasks done).",
     checkinPartial:
@@ -80,6 +81,25 @@ export default {
     correctAnswerLabel: 'Correct answer: ',
     explainLabel: 'Note: ',
     scoreSummary: '{correct} out of {total} correct',
+  },
+  writing: {
+    back: '← Back to dashboard',
+    sectionLabel: 'Writing today',
+    title: 'Email writing practice',
+    prompt:
+      'Write an email to your friend and invite them to your birthday party.\nRequirements: mention the time and place, and ask for a reply. Length: 80-100 words.',
+    placeholder: 'Write your German essay here...',
+    wordCount: 'Words: {n}',
+    targetCount: 'Target: 80-100 words',
+    submit: 'Submit for feedback',
+    loading: 'AI is reviewing...',
+    missingKey: 'Missing VITE_OPENAI_API_KEY. Please configure it in .env first.',
+    genericError: 'Feedback failed. Please try again later.',
+    scoreTitle: 'Estimated score',
+    scoreFormat: '{score} / 20 pts',
+    strengthsTitle: 'Strengths',
+    improvementsTitle: 'Needs improvement',
+    sampleTitle: 'Reference version',
   },
   vocab: {
     back: '← Back to dashboard',
