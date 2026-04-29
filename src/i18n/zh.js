@@ -27,6 +27,7 @@ export default {
     startVocab: '开始',
     startGrammar: '开始',
     startWriting: '开始',
+    startSpeaking: '开始',
     doneCheckin: '完成今日打卡',
     checkinSuccess: '🎉 打卡成功！连续第{n}天',
     checkinPartial: '已记录为部分完成，未做的任务已排入未来三天补课（不超过每日上限）。',
@@ -49,6 +50,10 @@ export default {
       listening: {
         title: '听力',
         description: '完成 1 段听力练习',
+      },
+      speaking: {
+        title: '口语',
+        description: '完成 1 段口语练习',
       },
       writing: {
         title: '写作',
@@ -98,6 +103,28 @@ export default {
     strengthsTitle: '优点',
     improvementsTitle: '需改进',
     sampleTitle: '参考范文',
+  },
+  speaking: {
+    back: '← 返回看板',
+    title: '口语练习',
+    topic: '请介绍一下你的家乡，说说你最喜欢那里的什么。',
+    prepareTime: '准备时间：1分钟',
+    tapToRecord: '点击麦克风开始录音',
+    recording: '录音中...',
+    transcriptTitle: '转写内容',
+    getFeedback: '获取 AI 反馈',
+    loading: 'AI 正在分析中...',
+    missingKey: '缺少 VITE_OPENAI_API_KEY，请先在 .env 中配置。',
+    genericError: '反馈失败，请稍后再试。',
+    unsupported: '当前浏览器不支持 Web Speech API，请使用 Chrome 或 Edge。',
+    recordingError: '录音失败，请检查麦克风权限。',
+    overallTitle: '总体建议',
+    dimensions: {
+      pronunciation: '发音建议',
+      grammar: '语法',
+      vocabulary: '词汇',
+      fluency: '流利度',
+    },
   },
   vocab: {
     back: '← 返回看板',

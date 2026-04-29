@@ -8,12 +8,13 @@ import {
   getTodayTasks,
 } from '../utils/planGenerator.js'
 
-const TASK_IDS = ['vocab', 'grammar', 'listening', 'writing']
+const TASK_IDS = ['vocab', 'grammar', 'listening', 'speaking', 'writing']
 
 const TASK_ICONS = {
   vocab: '📚',
   grammar: '📖',
   listening: '🎧',
+  speaking: '🎙️',
   writing: '✍️',
 }
 
@@ -31,6 +32,7 @@ const STREAK_SESSION_KEY = 'goethe-dismiss-streak'
  *   onStartVocab?: () => void
  *   onStartGrammar?: () => void
  *   onStartWriting?: () => void
+ *   onStartSpeaking?: () => void
  *   onViewProgress?: () => void
  * }} props
  */
@@ -45,6 +47,7 @@ export function DashboardPage({
   onStartVocab,
   onStartGrammar,
   onStartWriting,
+  onStartSpeaking,
   onViewProgress,
 }) {
   const { dashboard: d, home: h } = messages
@@ -77,6 +80,7 @@ export function DashboardPage({
       if (id === 'vocab') return todayPlan.todayVocab > 0
       if (id === 'grammar') return todayPlan.todayGrammar
       if (id === 'listening') return todayPlan.todayListening
+      if (id === 'speaking') return true
       if (id === 'writing') return todayPlan.todayWriting
       return true
     })
@@ -327,6 +331,28 @@ export function DashboardPage({
                 className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
               >
                 {d.startWriting}
+              </button>
+            </div>
+          )}
+          {!task.isMakeup && task.id === 'speaking' && onStartSpeaking && (
+            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
+              <button
+                type="button"
+                onClick={onStartSpeaking}
+                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+              >
+                {d.startSpeaking}
+              </button>
+            </div>
+          )}
+          {task.isMakeup && task.baseId === 'speaking' && onStartSpeaking && (
+            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
+              <button
+                type="button"
+                onClick={onStartSpeaking}
+                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+              >
+                {d.startSpeaking}
               </button>
             </div>
           )}

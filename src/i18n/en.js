@@ -27,6 +27,7 @@ export default {
     startVocab: 'Start',
     startGrammar: 'Start',
     startWriting: 'Start',
+    startSpeaking: 'Start',
     doneCheckin: 'Check in for today',
     checkinSuccess: "🎉 Checked in! That's day {n} in a row (all tasks done).",
     checkinPartial:
@@ -51,6 +52,10 @@ export default {
       listening: {
         title: 'Listening',
         description: 'Complete 1 listening exercise',
+      },
+      speaking: {
+        title: 'Speaking',
+        description: 'Complete 1 speaking practice',
       },
       writing: {
         title: 'Writing',
@@ -100,6 +105,28 @@ export default {
     strengthsTitle: 'Strengths',
     improvementsTitle: 'Needs improvement',
     sampleTitle: 'Reference version',
+  },
+  speaking: {
+    back: '← Back to dashboard',
+    title: 'Speaking practice',
+    topic: 'Introduce your hometown and say what you like most about it.',
+    prepareTime: 'Preparation time: 1 minute',
+    tapToRecord: 'Tap the microphone to start recording',
+    recording: 'Recording...',
+    transcriptTitle: 'Transcript',
+    getFeedback: 'Get AI feedback',
+    loading: 'AI is analyzing...',
+    missingKey: 'Missing VITE_OPENAI_API_KEY. Please configure it in .env first.',
+    genericError: 'Feedback failed. Please try again later.',
+    unsupported: 'This browser does not support the Web Speech API. Please use Chrome or Edge.',
+    recordingError: 'Recording failed. Please check microphone permissions.',
+    overallTitle: 'Overall advice',
+    dimensions: {
+      pronunciation: 'Pronunciation',
+      grammar: 'Grammar',
+      vocabulary: 'Vocabulary',
+      fluency: 'Fluency',
+    },
   },
   vocab: {
     back: '← Back to dashboard',

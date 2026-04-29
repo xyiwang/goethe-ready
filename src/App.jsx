@@ -5,6 +5,7 @@ import { VocabPage } from './pages/VocabPage.jsx'
 import { GrammarPage } from './pages/GrammarPage.jsx'
 import { ProgressPage } from './pages/ProgressPage.jsx'
 import { WritingPage } from './pages/WritingPage.jsx'
+import { SpeakingPage } from './pages/SpeakingPage.jsx'
 import { getMessages } from './i18n/index.js'
 
 const LOCALE_STORAGE_KEY = 'goethe-ready-locale'
@@ -95,6 +96,18 @@ function App() {
     )
   }
 
+  if (route === 'speaking' && plan) {
+    return (
+      <SpeakingPage
+        messages={messages}
+        locale={locale}
+        language={language}
+        setLocale={setLocale}
+        onBack={() => setRoute('dashboard')}
+      />
+    )
+  }
+
   if (route === 'dashboard' && plan) {
     return (
       <DashboardPage
@@ -108,6 +121,7 @@ function App() {
         onStartVocab={() => setRoute('vocab')}
         onStartGrammar={() => setRoute('grammar')}
         onStartWriting={() => setRoute('writing')}
+        onStartSpeaking={() => setRoute('speaking')}
         onViewProgress={() => setRoute('progress')}
       />
     )
