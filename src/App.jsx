@@ -1,87 +1,110 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { HomePage } from './pages/HomePage.jsx'
+import { DashboardPage } from './pages/DashboardPage.jsx'
+import { VocabPage } from './pages/VocabPage.jsx'
+import { GrammarPage } from './pages/GrammarPage.jsx'
+import { ProgressPage } from './pages/ProgressPage.jsx'
+import { getMessages } from './i18n/index.js'
 
-const LEVELS = [
-  { id: 'beginner', label: '零基础' },
-  { id: 'a1a2', label: '已过A1/A2' },
-  { id: 'b1', label: 'B1冲高分' },
-]
+const LOCALE_STORAGE_KEY = 'goethe-ready-locale'
+
+function readBrowserLocale() {
+  if (typeof navigator === 'undefined') return 'zh'
+  const lang = (navigator.language || navigator.languages?.[0] || '').toLowerCase()
+  return lang.startsWith('en') ? 'en' : 'zh'
+}
+
+/** 优先已保存的语言；首次访问则按浏览器语言推断 */
+function readInitialLocale() {
+  if (typeof window === 'undefined') return 'zh'
+  const raw = localStorage.getItem(LOCALE_STORAGE_KEY)
+  if (raw === 'en' || raw === 'zh') return raw
+  return readBrowserLocale()
+}
 
 function App() {
-  const [days, setDays] = useState('')
-  const [level, setLevel] = useState(null)
-  const [generating, setGenerating] = useState(false)
+  const [route, setRoute] = useState('home')
+  const [plan, setPlan] = useState(null)
+  const [locale, setLocaleState] = useState(() => readInitialLocale())
 
-  const handleStart = () => {
-    setGenerating(true)
+  const setLocale = (next) => {
+    const value = next === 'en' ? 'en' : 'zh'
+    setLocaleState(value)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(LOCALE_STORAGE_KEY, value)
+    }
   }
 
-  if (generating) {
+  const messages = useMemo(() => getMessages(locale), [locale])
+
+  const handleNavigateToDashboard = (payload) => {
+    setPlan(payload)
+    setRoute('dashboard')
+  }
+
+  const handleBackHome = () => {
+    setRoute('home')
+    setPlan(null)
+  }
+
+  if (route === 'vocab' && plan) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-white px-6">
-        <p className="text-center text-lg font-medium tracking-tight text-slate-700">
-          正在为你生成专属计划...
-        </p>
-      </div>
+      <VocabPage
+        messages={messages}
+        locale={locale}
+        setLocale={setLocale}
+        onBack={() => setRoute('dashboard')}
+      />
+    )
+  }
+
+  if (route === 'grammar' && plan) {
+    return (
+      <GrammarPage
+        messages={messages}
+        locale={locale}
+        setLocale={setLocale}
+        onBack={() => setRoute('dashboard')}
+      />
+    )
+  }
+
+  if (route === 'progress' && plan) {
+    return (
+      <ProgressPage
+        messages={messages}
+        locale={locale}
+        setLocale={setLocale}
+        days={plan.days}
+        onBack={() => setRoute('dashboard')}
+      />
+    )
+  }
+
+  if (route === 'dashboard' && plan) {
+    return (
+      <DashboardPage
+        messages={messages}
+        locale={locale}
+        setLocale={setLocale}
+        days={plan.days}
+        levelId={plan.levelId}
+        levelLabel={plan.levelLabel}
+        onBack={handleBackHome}
+        onStartVocab={() => setRoute('vocab')}
+        onStartGrammar={() => setRoute('grammar')}
+        onViewProgress={() => setRoute('progress')}
+      />
     )
   }
 
   return (
-    <div className="min-h-dvh bg-white px-6 py-14 text-slate-900 sm:py-20">
-      <div className="mx-auto flex w-full max-w-md flex-col">
-        <header className="mb-12 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-            GoetheReady 🇩🇪
-          </h1>
-          <p className="mt-3 text-base text-slate-500 sm:text-lg">
-            歌德考试智能备考平台
-          </p>
-        </header>
-
-        <label className="sr-only" htmlFor="exam-days">
-          距离考试天数
-        </label>
-        <input
-          id="exam-days"
-          type="text"
-          inputMode="numeric"
-          value={days}
-          onChange={(e) => setDays(e.target.value)}
-          placeholder="距离考试还有多少天？"
-          className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
-        />
-
-        <p className="mb-3 mt-8 text-left text-sm font-medium text-slate-600">
-          当前水平
-        </p>
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-2">
-          {LEVELS.map(({ id, label }) => {
-            const selected = level === id
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setLevel(id)}
-                className={`rounded-xl border px-4 py-3 text-sm font-medium transition sm:flex-1 sm:min-w-[calc(33.333%-0.5rem)] ${
-                  selected
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-200'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
-
-        <button
-          type="button"
-          onClick={handleStart}
-          className="mt-12 w-full rounded-xl bg-emerald-600 py-3.5 text-base font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 active:bg-emerald-800"
-        >
-          开始制定我的备考计划
-        </button>
-      </div>
-    </div>
+    <HomePage
+      messages={messages}
+      locale={locale}
+      setLocale={setLocale}
+      onNavigateToDashboard={handleNavigateToDashboard}
+    />
   )
 }
 
