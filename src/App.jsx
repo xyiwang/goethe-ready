@@ -27,6 +27,7 @@ function readInitialLocale() {
 function App() {
   const [route, setRoute] = useState('home')
   const [plan, setPlan] = useState(null)
+  const [todayVocabCount, setTodayVocabCount] = useState(20)
   const [locale, setLocaleState] = useState(() => readInitialLocale())
 
   const setLocale = (next) => {
@@ -56,6 +57,7 @@ function App() {
         messages={messages}
         locale={locale}
         setLocale={setLocale}
+        todayVocabCount={todayVocabCount}
         onBack={() => setRoute('dashboard')}
       />
     )
@@ -118,7 +120,10 @@ function App() {
         levelId={plan.levelId}
         levelLabel={plan.levelLabel}
         onBack={handleBackHome}
-        onStartVocab={() => setRoute('vocab')}
+        onStartVocab={(count) => {
+          setTodayVocabCount(count)
+          setRoute('vocab')
+        }}
         onStartGrammar={() => setRoute('grammar')}
         onStartWriting={() => setRoute('writing')}
         onStartSpeaking={() => setRoute('speaking')}

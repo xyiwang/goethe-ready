@@ -139,6 +139,12 @@ export default {
     allDone: "You've finished this vocabulary set!",
     labels: {
       typeVerb: 'verb',
+      typeAdjektiv: 'adjective',
+      typeAdverb: 'adverb',
+      frequency: 'frequency',
+      freqHigh: 'high',
+      freqMedium: 'medium',
+      freqLow: 'low',
       meaningZh: 'Chinese',
       meaningEn: 'English',
       collocation: 'Collocation',

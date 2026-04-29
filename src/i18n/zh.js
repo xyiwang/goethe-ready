@@ -137,6 +137,12 @@ export default {
     allDone: '本组词汇已练完！',
     labels: {
       typeVerb: '动词',
+      typeAdjektiv: '形容词',
+      typeAdverb: '副词',
+      frequency: '频率',
+      freqHigh: '高',
+      freqMedium: '中',
+      freqLow: '低',
       meaningZh: '中文释义',
       meaningEn: '英文释义',
       collocation: '固定搭配',
