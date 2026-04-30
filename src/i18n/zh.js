@@ -74,6 +74,8 @@ export default {
     statStreak: '当前连续打卡天数',
     statCumulative: '累计完成天数',
     statWords: '累计学习单词数',
+    resetProgress: '重置学习进度',
+    resetProgressConfirm: '确认要清空打卡记录和词汇学习进度吗？此操作不可撤销。',
   },
   grammar: {
     back: '← 返回看板',

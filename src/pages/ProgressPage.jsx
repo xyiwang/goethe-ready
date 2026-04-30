@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
 
 /** @typedef {'full' | 'partial' | 'none'} DayStatus */
@@ -42,36 +42,75 @@ function getMonthGrid(year, monthIndex) {
   return cells
 }
 
-/**
- * 最近 15 天：2 天未打卡、3 天部分完成、10 天全部完成（由旧到新）
- * @returns {Map<string, DayStatus>}
- */
-function buildMockStatusMap(today = new Date()) {
-  const t = stripNoon(today)
-  const order = [
-    'none',
-    'none',
-    'partial',
-    'partial',
-    'partial',
-    'full',
-    'full',
-    'full',
-    'full',
-    'full',
-    'full',
-    'full',
-    'full',
-    'full',
-    'full',
-  ]
-  const map = new Map()
-  for (let i = 0; i < 15; i++) {
-    const d = new Date(t)
-    d.setDate(t.getDate() - (14 - i))
-    map.set(ymd(d), /** @type {DayStatus} */ (order[i]))
+function readJsonSafely(key, fallback) {
+  if (typeof localStorage === 'undefined') return fallback
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : fallback
+  } catch {
+    return fallback
   }
-  return map
+}
+
+/**
+ * @returns {Record<string, { isFull?: boolean }>}
+ */
+function readAllCheckinRecords() {
+  if (typeof localStorage === 'undefined') return {}
+  const merged = {}
+
+  const mapRecords = readJsonSafely('goethe-ready-daily-records', {})
+  if (mapRecords && typeof mapRecords === 'object') {
+    for (const [date, rec] of Object.entries(mapRecords)) {
+      merged[date] = rec
+    }
+  }
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key || !key.startsWith('checkin_')) continue
+      const dateFromKey = key.slice('checkin_'.length)
+      const rec = readJsonSafely(key, null)
+      if (rec && typeof rec === 'object') {
+        const date = String(rec.date || dateFromKey)
+        merged[date] = rec
+      }
+    }
+  } catch {
+    // ignore storage iteration failures
+  }
+
+  return merged
+}
+
+function clearProgressStorage() {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key) continue
+      if (key.startsWith('tasks_') || key.startsWith('checkin_')) {
+        keysToRemove.push(key)
+      }
+    }
+
+    const fixedKeys = [
+      'goethe-ready-daily-records',
+      'goethe-ready-makeup-by-date',
+      'vocab_progress',
+      'vocab_mastered',
+      'goethe-ready-vocab-cursor',
+      'goethe-ready-vocab-daily-set',
+    ]
+
+    for (const key of [...fixedKeys, ...keysToRemove]) {
+      localStorage.removeItem(key)
+    }
+  } catch {
+    // ignore storage failures
+  }
 }
 
 function streakFromMap(statusMap, today = new Date()) {
@@ -101,19 +140,48 @@ export function ProgressPage({ messages, locale, setLocale, days, onBack }) {
   const weekdays = /** @type {string[]} */ (p.weekdaysShort)
 
   const today = useMemo(() => stripNoon(new Date()), [])
-  const statusMap = useMemo(() => buildMockStatusMap(today), [today])
+  const [checkinRecords, setCheckinRecords] = useState({})
+  const [cumulativeWords, setCumulativeWords] = useState(0)
+
+  useEffect(() => {
+    setCheckinRecords(readAllCheckinRecords())
+    const mastered = readJsonSafely('vocab_mastered', [])
+    setCumulativeWords(Array.isArray(mastered) ? mastered.length : 0)
+  }, [])
+
+  const handleResetProgress = () => {
+    if (typeof window !== 'undefined') {
+      const ok = window.confirm(
+        String(
+          p.resetProgressConfirm ||
+            'Are you sure you want to clear check-in history and vocabulary progress?',
+        ),
+      )
+      if (!ok) return
+    }
+
+    clearProgressStorage()
+    setCheckinRecords({})
+    setCumulativeWords(0)
+  }
+
+  const statusMap = useMemo(() => {
+    const map = new Map()
+    for (const [date, rec] of Object.entries(checkinRecords)) {
+      map.set(date, rec?.isFull ? 'full' : 'partial')
+    }
+    return map
+  }, [checkinRecords])
 
   const daysNum = parseInt(String(days).trim(), 10)
   const daysUntilExam = Number.isNaN(daysNum) ? days : daysNum
   const totalProgramDays = Number.isFinite(daysNum) && !Number.isNaN(daysNum) && daysNum > 0 ? daysNum : 90
 
-  /** 假数据：整体备考进度 */
-  const completedProgramDays = 35
+  const completedProgramDays = Object.keys(checkinRecords).length
   const progressPct = Math.min(100, Math.round((completedProgramDays / totalProgramDays) * 100))
 
   const streak = useMemo(() => streakFromMap(statusMap, today), [statusMap, today])
-  const cumulativeDoneDays = 48
-  const cumulativeWords = 532
+  const cumulativeDoneDays = completedProgramDays
 
   const year = today.getFullYear()
   const month = today.getMonth()
@@ -269,6 +337,16 @@ export function ProgressPage({ messages, locale, setLocale, days, onBack }) {
             <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{cumulativeWords}</p>
             <p className="mt-1 text-xs font-medium text-slate-500">{p.statWords}</p>
           </div>
+        </section>
+
+        <section className="mt-6">
+          <button
+            type="button"
+            onClick={handleResetProgress}
+            className="w-full rounded-xl border border-rose-200 bg-rose-50 py-3 text-sm font-semibold text-rose-700 shadow-sm transition hover:border-rose-300 hover:bg-rose-100"
+          >
+            {p.resetProgress}
+          </button>
         </section>
       </div>
     </div>

@@ -1,73 +1,57 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
 import vocabData from '../data/vocab_complete.json'
 
-const VOCAB_CURSOR_KEY = 'goethe-ready-vocab-cursor'
-const VOCAB_DAILY_SET_KEY = 'goethe-ready-vocab-daily-set'
+const VOCAB_PROGRESS_KEY = 'vocab_progress'
+const VOCAB_MASTERED_KEY = 'vocab_mastered'
 
-function todayYmd() {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function clampCount(n) {
-  const x = parseInt(String(n), 10)
-  if (Number.isNaN(x)) return 20
-  return Math.max(1, x)
-}
-
-function getTodayVocabSet(count) {
-  const all = /** @type {any[]} */ (vocabData)
-  const size = Math.min(clampCount(count), all.length)
-  if (size <= 0) return []
-
-  if (typeof localStorage === 'undefined') {
-    return all.slice(0, size)
-  }
-
-  const today = todayYmd()
-  const idMap = new Map(all.map((w) => [String(w.id), w]))
-
+function readJsonSafely(key, fallback) {
+  if (typeof localStorage === 'undefined') return fallback
   try {
-    const cached = JSON.parse(localStorage.getItem(VOCAB_DAILY_SET_KEY) || 'null')
-    if (
-      cached &&
-      cached.date === today &&
-      cached.size === size &&
-      Array.isArray(cached.ids)
-    ) {
-      const list = cached.ids.map((id) => idMap.get(String(id))).filter(Boolean)
-      if (list.length) return list
-    }
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : fallback
   } catch {
-    // ignore malformed cache
+    return fallback
   }
+}
 
-  const rawCursor = parseInt(localStorage.getItem(VOCAB_CURSOR_KEY) || '0', 10)
-  const cursor = Number.isNaN(rawCursor) ? 0 : ((rawCursor % all.length) + all.length) % all.length
-
-  const picked = []
-  const ids = []
-  for (let i = 0; i < size; i++) {
-    const idx = (cursor + i) % all.length
-    picked.push(all[idx])
-    ids.push(all[idx].id)
+function writeJsonSafely(key, value) {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // ignore storage failures
   }
+}
 
-  localStorage.setItem(VOCAB_CURSOR_KEY, String((cursor + size) % all.length))
-  localStorage.setItem(
-    VOCAB_DAILY_SET_KEY,
-    JSON.stringify({
-      date: today,
-      size,
-      ids,
-    }),
-  )
+function readIntSafely(key, fallback) {
+  if (typeof localStorage === 'undefined') return fallback
+  try {
+    const raw = localStorage.getItem(key)
+    const parsed = parseInt(raw || '', 10)
+    return Number.isNaN(parsed) ? fallback : parsed
+  } catch {
+    return fallback
+  }
+}
 
-  return picked
+function writeIntSafely(key, value) {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(key, String(value))
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function nextUnmasteredIndex(words, masteredSet, startIndex) {
+  if (!Array.isArray(words) || words.length === 0) return -1
+  for (let i = 0; i < words.length; i++) {
+    const idx = (startIndex + i + words.length) % words.length
+    const id = String(words[idx].id)
+    if (!masteredSet.has(id)) return idx
+  }
+  return -1
 }
 
 function typeBadgeClass(type) {
@@ -109,13 +93,39 @@ function frequencyDisplay(frequency, locale, labels) {
  * }} props
  */
 export function VocabPage({ messages, locale, setLocale, todayVocabCount = 20, onBack }) {
+  void todayVocabCount
   const { vocab: v, home: h } = messages
   const labels = v.labels
+  const words = /** @type {any[]} */ (vocabData)
 
-  const [queue, setQueue] = useState(() => getTodayVocabSet(todayVocabCount))
+  const [progressIndex, setProgressIndex] = useState(0)
+  const [masteredIds, setMasteredIds] = useState(/** @type {string[]} */ ([]))
   const [flipped, setFlipped] = useState(false)
 
-  const current = queue[0]
+  useEffect(() => {
+    const storedMastered = readJsonSafely(VOCAB_MASTERED_KEY, [])
+    const mastered = Array.isArray(storedMastered) ? storedMastered.map((x) => String(x)) : []
+    const masteredSet = new Set(mastered)
+
+    const rawIndex = readIntSafely(VOCAB_PROGRESS_KEY, 0)
+    const normalizedStart = words.length > 0 ? ((rawIndex % words.length) + words.length) % words.length : 0
+    const nextIdx = nextUnmasteredIndex(words, masteredSet, normalizedStart)
+
+    setMasteredIds(mastered)
+    setProgressIndex(nextIdx)
+  }, [words])
+
+  useEffect(() => {
+    writeJsonSafely(VOCAB_MASTERED_KEY, masteredIds)
+  }, [masteredIds])
+
+  useEffect(() => {
+    writeIntSafely(VOCAB_PROGRESS_KEY, progressIndex < 0 ? 0 : progressIndex)
+  }, [progressIndex])
+
+  const masteredSet = useMemo(() => new Set(masteredIds.map((id) => String(id))), [masteredIds])
+  const unmasteredCount = Math.max(0, words.length - masteredSet.size)
+  const current = progressIndex >= 0 ? words[progressIndex] : null
 
   const langSwitch = (
     <LanguageSwitch
@@ -126,26 +136,24 @@ export function VocabPage({ messages, locale, setLocale, todayVocabCount = 20, o
     />
   )
 
-  const headerRow = (
-    <div className="mb-6 flex items-start justify-between gap-3">
-      <button
-        type="button"
-        onClick={onBack}
-        className="pt-0.5 text-left text-sm font-medium text-slate-500 transition hover:text-emerald-700"
-      >
-        {v.back}
-      </button>
-      {langSwitch}
-    </div>
-  )
+  const moveNext = (startFrom, extraMasteredSet = masteredSet) => {
+    const next = nextUnmasteredIndex(words, extraMasteredSet, startFrom)
+    setProgressIndex(next)
+  }
 
   const handleNotFamiliar = () => {
-    setQueue((q) => (q.length <= 1 ? q : [...q.slice(1), q[0]]))
+    if (progressIndex < 0) return
+    moveNext(progressIndex + 1)
     setFlipped(false)
   }
 
   const handleMastered = () => {
-    setQueue((q) => q.slice(1))
+    if (!current) return
+    const id = String(current.id)
+    const nextMasteredSet = new Set(masteredSet)
+    nextMasteredSet.add(id)
+    setMasteredIds(Array.from(nextMasteredSet))
+    moveNext(progressIndex + 1, nextMasteredSet)
     setFlipped(false)
   }
 
@@ -185,10 +193,19 @@ export function VocabPage({ messages, locale, setLocale, todayVocabCount = 20, o
   return (
     <div className="min-h-dvh bg-white px-6 py-10 pb-40 text-slate-900">
       <div className="mx-auto w-full max-w-md">
-        {headerRow}
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <button
+            type="button"
+            onClick={onBack}
+            className="pt-0.5 text-left text-sm font-medium text-slate-500 transition hover:text-emerald-700"
+          >
+            {v.back}
+          </button>
+          {langSwitch}
+        </div>
 
         <p className="mb-2 text-center text-xs font-medium uppercase tracking-wide text-slate-400">
-          {v.progressHint.replace('{n}', String(queue.length))}
+          {v.progressHint.replace('{n}', String(unmasteredCount))}
         </p>
         <h1 className="mb-6 text-center text-xl font-semibold text-slate-900">{v.title}</h1>
 
@@ -210,7 +227,6 @@ export function VocabPage({ messages, locale, setLocale, todayVocabCount = 20, o
               flipped ? '[transform:rotateY(180deg)]' : ''
             }`}
           >
-            {/* 正面 */}
             <div
               className="absolute inset-0 flex min-h-[22rem] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 shadow-sm [backface-visibility:hidden]"
               aria-hidden={flipped}
@@ -233,7 +249,6 @@ export function VocabPage({ messages, locale, setLocale, todayVocabCount = 20, o
               <p className="mt-8 text-center text-xs text-slate-400">{v.flipHint}</p>
             </div>
 
-            {/* 背面 */}
             <div
               className="absolute inset-0 flex min-h-[22rem] flex-col rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm [backface-visibility:hidden] [transform:rotateY(180deg)]"
               aria-hidden={!flipped}
@@ -272,14 +287,14 @@ export function VocabPage({ messages, locale, setLocale, todayVocabCount = 20, o
         <div className="mt-8 flex gap-3">
           <button
             type="button"
-            onClick={() => handleNotFamiliar()}
+            onClick={handleNotFamiliar}
             className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
           >
             {v.notFamiliar}
           </button>
           <button
             type="button"
-            onClick={() => handleMastered()}
+            onClick={handleMastered}
             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
           >
             {v.mastered}

@@ -76,6 +76,9 @@ export default {
     statStreak: 'Current streak (days)',
     statCumulative: 'Total completed days',
     statWords: 'Words studied (total)',
+    resetProgress: 'Reset Learning Progress',
+    resetProgressConfirm:
+      'Are you sure you want to clear check-in history and vocabulary progress? This cannot be undone.',
   },
   grammar: {
     back: '← Back to dashboard',

@@ -31,7 +31,11 @@ function readJson(key, fallback) {
 
 function writeJson(key, value) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(key, JSON.stringify(value))
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // ignore storage failures
+  }
 }
 
 /** @typedef {{ completed: string[]; missed: string[]; isFull?: boolean }} DailyRecord */
@@ -163,6 +167,10 @@ export function countConsecutiveDaysWithoutCheckin(todayStr) {
 export function clearMakeupAndResetPlan() {
   setMakeupByDate({})
   if (typeof window !== 'undefined') {
-    localStorage.setItem(PLAN_MODE_KEY, 'reduced')
+    try {
+      localStorage.setItem(PLAN_MODE_KEY, 'reduced')
+    } catch {
+      // ignore storage failures
+    }
   }
 }

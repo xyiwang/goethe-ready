@@ -19,6 +19,31 @@ const TASK_ICONS = {
 }
 
 const STREAK_SESSION_KEY = 'goethe-dismiss-streak'
+const TASKS_STORAGE_PREFIX = 'tasks_'
+const CHECKIN_STORAGE_PREFIX = 'checkin_'
+
+function isoDateString(date = new Date()) {
+  return date.toISOString().split('T')[0]
+}
+
+function readJsonSafely(key, fallback) {
+  if (typeof localStorage === 'undefined') return fallback
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function writeJsonSafely(key, value) {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // ignore storage failures
+  }
+}
 
 /**
  * @param {{
@@ -53,7 +78,7 @@ export function DashboardPage({
   const { dashboard: d, home: h } = messages
   const levelDisplay = (levelId && h.levels[levelId]) || levelLabel
 
-  const todayStr = useMemo(() => checkin.ymd(new Date()), [])
+  const todayStr = useMemo(() => isoDateString(new Date()), [])
   const storedStudyPlan = useMemo(() => {
     if (typeof localStorage === 'undefined') return null
     try {
@@ -123,29 +148,37 @@ export function DashboardPage({
   }, [makeupRaw, d.tasks])
 
   const [done, setDone] = useState({})
+  const [todayRecord, setTodayRecord] = useState(() => {
+    const fromDailyKey = readJsonSafely(`${CHECKIN_STORAGE_PREFIX}${todayStr}`, null)
+    if (fromDailyKey) return fromDailyKey
+    return checkin.getDailyRecords()[todayStr] || null
+  })
   const [checkinBanner, setCheckinBanner] = useState(/** @type {string | null} */ (null))
   const [modalTick, setModalTick] = useState(0)
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 合并 base + 补课行 key，与任务列表保持同步
-    setDone((prev) => {
-      const next = { ...prev }
-      for (const t of taskDefs) {
-        if (!(t.rowKey in next)) next[t.rowKey] = false
-      }
-      for (const t of makeupTaskDefs) {
-        if (!(t.rowKey in next)) next[t.rowKey] = false
-      }
-      const allowed = new Set([
-        ...taskDefs.map((t) => t.rowKey),
-        ...makeupTaskDefs.map((t) => t.rowKey),
-      ])
-      for (const k of Object.keys(next)) {
-        if (!allowed.has(k)) delete next[k]
-      }
-      return next
-    })
-  }, [taskDefs, makeupTaskDefs])
+    const allowed = new Set([...taskDefs.map((t) => t.rowKey), ...makeupTaskDefs.map((t) => t.rowKey)])
+    const stored = readJsonSafely(`${TASKS_STORAGE_PREFIX}${todayStr}`, {})
+    const next = {}
+    for (const key of allowed) {
+      next[key] = Boolean(stored[key])
+    }
+    setDone(next)
+  }, [taskDefs, makeupTaskDefs, todayStr])
+
+  useEffect(() => {
+    if (Object.keys(done).length === 0) return
+    writeJsonSafely(`${TASKS_STORAGE_PREFIX}${todayStr}`, done)
+  }, [done, todayStr])
+
+  useEffect(() => {
+    const fromDailyKey = readJsonSafely(`${CHECKIN_STORAGE_PREFIX}${todayStr}`, null)
+    if (fromDailyKey) {
+      setTodayRecord(fromDailyKey)
+      return
+    }
+    setTodayRecord(checkin.getDailyRecords()[todayStr] || null)
+  }, [todayStr, modalTick])
 
   const streakEligible = useMemo(() => {
     void modalTick
@@ -172,10 +205,8 @@ export function DashboardPage({
   const daysDisplay = Number.isNaN(remainingDays) ? days : remainingDays
   const isSprint = todayPlan.isSprintMode
 
-  const todayRecord = checkin.getDailyRecords()[todayStr]
-
   const handleCheckin = () => {
-    if (checkin.getDailyRecords()[todayStr]) return
+    if (todayRecord) return
 
     const missedSet = new Set()
     const completedSet = new Set()
@@ -189,6 +220,18 @@ export function DashboardPage({
     const isFull = missed.length === 0
 
     checkin.saveDailyCheckin(todayStr, {
+      completed: completedList,
+      missed,
+      isFull,
+    })
+    writeJsonSafely(`${CHECKIN_STORAGE_PREFIX}${todayStr}`, {
+      date: todayStr,
+      completed: completedList,
+      missed,
+      isFull,
+    })
+    setTodayRecord({
+      date: todayStr,
       completed: completedList,
       missed,
       isFull,
