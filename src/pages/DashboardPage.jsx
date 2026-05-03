@@ -67,6 +67,7 @@ function clearPlanAndCheckinStorage() {
  *   onBack?: () => void
  *   onStartVocab?: (count: number) => void
  *   onStartGrammar?: () => void
+ *   onStartListening?: () => void
  *   onStartWriting?: () => void
  *   onStartSpeaking?: () => void
  *   onViewProgress?: () => void
@@ -83,6 +84,7 @@ export function DashboardPage({
   onBack,
   onStartVocab,
   onStartGrammar,
+  onStartListening,
   onStartWriting,
   onStartSpeaking,
   onViewProgress,
@@ -420,6 +422,28 @@ export function DashboardPage({
                 className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
               >
                 {d.startWriting}
+              </button>
+            </div>
+          )}
+          {!task.isMakeup && task.id === 'listening' && onStartListening && (
+            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
+              <button
+                type="button"
+                onClick={onStartListening}
+                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+              >
+                {d.startListening ?? d.startGrammar}
+              </button>
+            </div>
+          )}
+          {task.isMakeup && task.baseId === 'listening' && onStartListening && (
+            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
+              <button
+                type="button"
+                onClick={onStartListening}
+                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+              >
+                {d.startListening ?? d.startGrammar}
               </button>
             </div>
           )}

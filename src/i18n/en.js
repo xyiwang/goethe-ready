@@ -58,6 +58,7 @@ export default {
     viewProgress: 'View progress',
     startVocab: 'Start',
     startGrammar: 'Start',
+    startListening: 'Start',
     startWriting: 'Start',
     startSpeaking: 'Start',
     doneCheckin: 'Check in for today',
@@ -94,6 +95,85 @@ export default {
         description: 'Complete 1 writing exercise',
       },
     },
+  },
+  listening: {
+    back: '← Back to dashboard',
+    title: 'B1 Listening Practice',
+    subtitle: 'Learn the exam format first, then train with official sets and daily material.',
+    examParts: [
+      {
+        title: 'Teil 1',
+        desc: '5 short dialogues, each played twice, choose a/b/c (10 questions).',
+      },
+      {
+        title: 'Teil 2',
+        desc: '1 longer passage, played once, mark Richtig/Falsch (5 questions).',
+      },
+      {
+        title: 'Teil 3',
+        desc: '1 dialogue, played once, choose a/b/c (5 questions).',
+      },
+      {
+        title: 'Teil 4',
+        desc: '1 discussion, played twice, match who said what (8 questions).',
+      },
+    ],
+    scoreRule: 'Total score: 30 points. You need 18 to pass.',
+    officialTitle: '🎯 Official Exam Sets',
+    officialTag: 'Do this first',
+    dailyTitle: '📻 Daily Listening Practice',
+    dailyTag: 'For long-term training',
+    difficultyLabel: 'Difficulty',
+    durationLabel: 'Estimated time',
+    openLink: 'Open link',
+    doneButton: '✅ Mark listening complete today',
+    officialSets: [
+      {
+        title: 'Modellsatz (Mock Set)',
+        description:
+          'Exactly matches the real Goethe exam format. Recommended for prep weeks 1-2.',
+        url: 'https://bfu.goethe.de/b1_mod/hoeren.php',
+        difficulty: 'B1 official',
+        duration: '35-45 min',
+      },
+      {
+        title: 'Übungssatz (Practice Set)',
+        description: 'Second full set. Recommended for prep weeks 3-4.',
+        url: 'https://www.goethe.de/en/spr/prf/ueb/pb1.html',
+        difficulty: 'B1 official',
+        duration: '35-45 min',
+      },
+    ],
+    dailySets: [
+      {
+        title: 'Deutsche Welle Learn German',
+        description: 'Designed for learners, B1-friendly, updated daily.',
+        url: 'https://learngerman.dw.com/en/learn-german/s-1',
+        difficulty: 'A2-B1',
+        duration: '10-20 min',
+      },
+      {
+        title: 'Schubert Verlag Listening Bank',
+        description: 'Large B1 listening exercise bank with audio and answer keys.',
+        url: 'https://www.schubert-verlag.de/aufgaben/uebungen_b1/b1_uebungen_index.htm',
+        difficulty: 'B1',
+        duration: '15-30 min',
+      },
+      {
+        title: 'Slowly German Podcast',
+        description: 'Slower speed and clear pronunciation, good for B1 prep.',
+        url: 'https://slowlygerman.com',
+        difficulty: 'A2-B1',
+        duration: '10-25 min',
+      },
+      {
+        title: 'YouTube: Deutsch mit Marija',
+        description: 'B1 listening practice videos with subtitles and explanation.',
+        url: 'https://www.youtube.com/@DeutschmitMarija',
+        difficulty: 'B1',
+        duration: '15-30 min',
+      },
+    ],
   },
   progress: {
     back: '← Back to dashboard',

@@ -6,6 +6,7 @@ import { GrammarPage } from './pages/GrammarPage.jsx'
 import { ProgressPage } from './pages/ProgressPage.jsx'
 import { WritingPage } from './pages/WritingPage.jsx'
 import { SpeakingPage } from './pages/SpeakingPage.jsx'
+import { ListeningPage } from './pages/ListeningPage.jsx'
 import { AuthPage } from './pages/AuthPage.jsx'
 import { getMessages } from './i18n/index.js'
 import { isSupabaseConfigured, supabase } from './lib/supabase.js'
@@ -270,7 +271,20 @@ function App() {
         onStartGrammar={() => setRoute('grammar')}
         onStartWriting={() => setRoute('writing')}
         onStartSpeaking={() => setRoute('speaking')}
+        onStartListening={() => setRoute('listening')}
         onViewProgress={() => setRoute('progress')}
+      />
+    )
+  }
+
+  if (route === 'listening' && plan) {
+    return appFrame(
+      <ListeningPage
+        messages={messages}
+        locale={locale}
+        setLocale={setLocale}
+        onBack={() => setRoute('dashboard')}
+        onComplete={() => setRoute('dashboard')}
       />
     )
   }
