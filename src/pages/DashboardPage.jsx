@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
 import * as checkin from '../utils/checkin.js'
+import { getPlan, saveCheckin } from '../lib/db.js'
 import {
   PLAN_STORAGE_KEY,
   generatePlan,
@@ -45,11 +46,21 @@ function writeJsonSafely(key, value) {
   }
 }
 
+function clearPlanAndCheckinStorage() {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.clear()
+  } catch {
+    // ignore storage failures
+  }
+}
+
 /**
  * @param {{
  *   messages: { dashboard: Record<string, unknown>; home: { levels: Record<string, string>; languageSwitchZh: string; languageSwitchEn: string } }
  *   locale: 'zh' | 'en'
  *   setLocale: (locale: 'zh' | 'en') => void
+ *   userId?: string | null
  *   days: string
  *   levelId: string
  *   levelLabel: string
@@ -65,6 +76,7 @@ export function DashboardPage({
   messages,
   locale,
   setLocale,
+  userId = null,
   days,
   levelId,
   levelLabel,
@@ -76,7 +88,9 @@ export function DashboardPage({
   onViewProgress,
 }) {
   const { dashboard: d, home: h } = messages
-  const levelDisplay = (levelId && h.levels[levelId]) || levelLabel
+  const [remotePlanPayload, setRemotePlanPayload] = useState(null)
+  const effectiveLevelId = remotePlanPayload?.level || levelId
+  const levelDisplay = (effectiveLevelId && h.levels[effectiveLevelId]) || levelLabel
 
   const todayStr = useMemo(() => isoDateString(new Date()), [])
   const storedStudyPlan = useMemo(() => {
@@ -90,12 +104,17 @@ export function DashboardPage({
   }, [])
 
   const activePlan = useMemo(() => {
-    return storedStudyPlan?.plan ?? generatePlan(days, levelId)
-  }, [days, levelId, storedStudyPlan])
+    return (
+      remotePlanPayload?.plan ??
+      storedStudyPlan?.plan ??
+      generatePlan(remotePlanPayload?.days || days, effectiveLevelId)
+    )
+  }, [days, effectiveLevelId, remotePlanPayload, storedStudyPlan])
 
   const dayIndex = useMemo(() => {
-    return storedStudyPlan?.startDate ? getDayIndex(storedStudyPlan.startDate) : 1
-  }, [storedStudyPlan])
+    const startDate = remotePlanPayload?.startDate || storedStudyPlan?.startDate
+    return startDate ? getDayIndex(startDate) : 1
+  }, [remotePlanPayload, storedStudyPlan])
 
   const todayPlan = useMemo(() => getTodayTasks(activePlan, dayIndex), [activePlan, dayIndex])
 
@@ -155,6 +174,35 @@ export function DashboardPage({
   })
   const [checkinBanner, setCheckinBanner] = useState(/** @type {string | null} */ (null))
   const [modalTick, setModalTick] = useState(0)
+
+  useEffect(() => {
+    if (!userId) return
+    let active = true
+    const loadPlanFromCloud = async () => {
+      try {
+        const cloudPlan = await getPlan(userId)
+        if (!active || !cloudPlan) return
+        const cloudDays = String(cloudPlan.days ?? days)
+        const cloudLevel = String(cloudPlan.level ?? (effectiveLevelId || levelId))
+        const cloudStartDate = String(cloudPlan.start_date ?? todayStr)
+        const payload = {
+          days: cloudDays,
+          level: cloudLevel,
+          levelLabel: h.levels[cloudLevel] ?? levelLabel,
+          plan: generatePlan(cloudDays, cloudLevel),
+          startDate: cloudStartDate,
+        }
+        localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(payload))
+        setRemotePlanPayload(payload)
+      } catch {
+        // keep local fallback
+      }
+    }
+    void loadPlanFromCloud()
+    return () => {
+      active = false
+    }
+  }, [days, effectiveLevelId, h.levels, levelId, levelLabel, todayStr, userId])
 
   useEffect(() => {
     const allowed = new Set([...taskDefs.map((t) => t.rowKey), ...makeupTaskDefs.map((t) => t.rowKey)])
@@ -247,6 +295,13 @@ export function DashboardPage({
     } else {
       setCheckinBanner(d.checkinPartial)
     }
+
+    if (userId) {
+      const vocabCount = completedSet.has('vocab') ? todayPlan.todayVocab : 0
+      void saveCheckin(userId, todayStr, completedList, vocabCount, isFull).catch(() => {
+        // do not block UX when cloud write fails
+      })
+    }
   }
 
   const handleContinuePlan = () => {
@@ -258,10 +313,12 @@ export function DashboardPage({
 
   const handleResetPlan = () => {
     checkin.clearMakeupAndResetPlan()
+    clearPlanAndCheckinStorage()
     if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.removeItem(STREAK_SESSION_KEY)
+      sessionStorage.setItem(STREAK_SESSION_KEY, '1')
     }
     setModalTick((n) => n + 1)
+    onBack?.()
   }
 
   const renderTaskCard = (task) => {

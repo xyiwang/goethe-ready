@@ -1,16 +1,75 @@
-# React + Vite
+# GoetheReady
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+GoetheReady is an AI-assisted prep platform for Goethe German exams (React + Vite + Tailwind CSS).
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+## Environment variables
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Create `.env` from `.env.example`:
 
-## Expanding the ESLint configuration
+```bash
+cp .env.example .env
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Required:
+
+- `VITE_OPENAI_API_KEY`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+## Supabase setup (Phase 5)
+
+1. Create a Supabase project.
+2. Enable Email auth (Authentication -> Providers -> Email).
+3. Run the SQL below in Supabase SQL Editor:
+
+```sql
+create table if not exists public.user_plans (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  days integer not null,
+  level text not null,
+  start_date date not null,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.daily_checkins (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  date date not null,
+  completed_tasks text[] not null default '{}',
+  vocab_count integer not null default 0,
+  is_complete boolean not null default false,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, date)
+);
+
+create table if not exists public.vocab_progress (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  vocab_index integer not null default 0,
+  mastered_ids text[] not null default '{}',
+  updated_at timestamptz not null default now()
+);
+
+alter table public.user_plans enable row level security;
+alter table public.daily_checkins enable row level security;
+alter table public.vocab_progress enable row level security;
+
+create policy "Users can manage own plans" on public.user_plans
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "Users can manage own daily checkins" on public.daily_checkins
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "Users can manage own vocab progress" on public.vocab_progress
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+```
+
+## Cloud sync behavior
+
+- Users sign in/up with email and password.
+- Study progress writes to `localStorage` as local cache and to Supabase tables.

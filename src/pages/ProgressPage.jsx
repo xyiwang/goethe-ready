@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
+import { getCheckins } from '../lib/db.js'
 
 /** @typedef {'full' | 'partial' | 'none'} DayStatus */
 
@@ -131,11 +132,12 @@ function streakFromMap(statusMap, today = new Date()) {
  *   messages: { progress: Record<string, unknown>; home: { languageSwitchZh: string; languageSwitchEn: string }; dashboard: { daysLeft: string; daysUnit: string } }
  *   locale: 'zh' | 'en'
  *   setLocale: (locale: 'zh' | 'en') => void
+ *   userId?: string | null
  *   days: string
  *   onBack: () => void
  * }} props
  */
-export function ProgressPage({ messages, locale, setLocale, days, onBack }) {
+export function ProgressPage({ messages, locale, setLocale, userId = null, days, onBack }) {
   const { progress: p, home: h, dashboard: d } = messages
   const weekdays = /** @type {string[]} */ (p.weekdaysShort)
 
@@ -144,10 +146,36 @@ export function ProgressPage({ messages, locale, setLocale, days, onBack }) {
   const [cumulativeWords, setCumulativeWords] = useState(0)
 
   useEffect(() => {
-    setCheckinRecords(readAllCheckinRecords())
-    const mastered = readJsonSafely('vocab_mastered', [])
-    setCumulativeWords(Array.isArray(mastered) ? mastered.length : 0)
-  }, [])
+    let active = true
+    const bootstrap = async () => {
+      let records = readAllCheckinRecords()
+      if (userId) {
+        try {
+          const cloudCheckins = await getCheckins(userId)
+          if (Array.isArray(cloudCheckins) && cloudCheckins.length > 0) {
+            const mapped = {}
+            for (const row of cloudCheckins) {
+              const date = String(row.date || '')
+              if (!date) continue
+              mapped[date] = { isFull: Boolean(row.is_complete) }
+            }
+            records = mapped
+          }
+        } catch {
+          // fallback to local records
+        }
+      }
+      if (!active) return
+      setCheckinRecords(records)
+      const mastered = readJsonSafely('vocab_mastered', [])
+      setCumulativeWords(Array.isArray(mastered) ? mastered.length : 0)
+    }
+
+    void bootstrap()
+    return () => {
+      active = false
+    }
+  }, [userId])
 
   const handleResetProgress = () => {
     if (typeof window !== 'undefined') {

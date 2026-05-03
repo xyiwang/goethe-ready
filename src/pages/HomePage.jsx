@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
 import { PLAN_STORAGE_KEY, generatePlan, todayYmd } from '../utils/planGenerator.js'
+import { savePlan } from '../lib/db.js'
 
 const LEVEL_IDS = ['beginner', 'a1a2', 'b1']
 
@@ -9,10 +10,11 @@ const LEVEL_IDS = ['beginner', 'a1a2', 'b1']
  *   messages: { home: Record<string, string | Record<string, string>> }
  *   locale: 'zh' | 'en'
  *   setLocale: (locale: 'zh' | 'en') => void
+ *   userId?: string | null
  *   onNavigateToDashboard: (payload: { days: string; levelId: string; levelLabel: string }) => void
  * }} props
  */
-export function HomePage({ messages, locale, setLocale, onNavigateToDashboard }) {
+export function HomePage({ messages, locale, setLocale, userId = null, onNavigateToDashboard }) {
   const { home: h } = messages
   const [days, setDays] = useState('')
   const [levelId, setLevelId] = useState(null)
@@ -24,7 +26,7 @@ export function HomePage({ messages, locale, setLocale, onNavigateToDashboard })
 
   const getLevelLabel = (id) => h.levels[id] ?? ''
 
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!canSubmit || !levelId) return
     const generatedPlan = generatePlan(daysNum, levelId)
     const startDate = todayYmd()
@@ -36,6 +38,13 @@ export function HomePage({ messages, locale, setLocale, onNavigateToDashboard })
       startDate,
     }
     localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(payload))
+    if (userId) {
+      try {
+        await savePlan(userId, daysNum, levelId, startDate)
+      } catch {
+        // keep local cache even if cloud write fails
+      }
+    }
     onNavigateToDashboard({
       days: daysTrim,
       levelId,

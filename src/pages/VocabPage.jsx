@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
 import vocabData from '../data/vocab_complete.json'
+import { getVocabProgress, saveVocabProgress } from '../lib/db.js'
 
 const VOCAB_PROGRESS_KEY = 'vocab_progress'
 const VOCAB_MASTERED_KEY = 'vocab_mastered'
@@ -88,11 +89,19 @@ function frequencyDisplay(frequency, locale, labels) {
  *   messages: { vocab: Record<string, unknown>; home: { languageSwitchZh: string; languageSwitchEn: string } }
  *   locale: 'zh' | 'en'
  *   setLocale: (locale: 'zh' | 'en') => void
+ *   userId?: string | null
  *   todayVocabCount?: number
  *   onBack: () => void
  * }} props
  */
-export function VocabPage({ messages, locale, setLocale, todayVocabCount = 20, onBack }) {
+export function VocabPage({
+  messages,
+  locale,
+  setLocale,
+  userId = null,
+  todayVocabCount = 20,
+  onBack,
+}) {
   void todayVocabCount
   const { vocab: v, home: h } = messages
   const labels = v.labels
@@ -103,17 +112,45 @@ export function VocabPage({ messages, locale, setLocale, todayVocabCount = 20, o
   const [flipped, setFlipped] = useState(false)
 
   useEffect(() => {
-    const storedMastered = readJsonSafely(VOCAB_MASTERED_KEY, [])
-    const mastered = Array.isArray(storedMastered) ? storedMastered.map((x) => String(x)) : []
-    const masteredSet = new Set(mastered)
+    let active = true
+    const bootstrap = async () => {
+      const storedMastered = readJsonSafely(VOCAB_MASTERED_KEY, [])
+      const fallbackMastered = Array.isArray(storedMastered)
+        ? storedMastered.map((x) => String(x))
+        : []
+      const fallbackIndex = readIntSafely(VOCAB_PROGRESS_KEY, 0)
 
-    const rawIndex = readIntSafely(VOCAB_PROGRESS_KEY, 0)
-    const normalizedStart = words.length > 0 ? ((rawIndex % words.length) + words.length) % words.length : 0
-    const nextIdx = nextUnmasteredIndex(words, masteredSet, normalizedStart)
+      let mastered = fallbackMastered
+      let rawIndex = fallbackIndex
+      if (userId) {
+        try {
+          const cloud = await getVocabProgress(userId)
+          if (cloud) {
+            mastered = Array.isArray(cloud.mastered_ids)
+              ? cloud.mastered_ids.map((x) => String(x))
+              : fallbackMastered
+            rawIndex = Number.isFinite(Number(cloud.vocab_index))
+              ? Number(cloud.vocab_index)
+              : fallbackIndex
+          }
+        } catch {
+          // fallback to local
+        }
+      }
 
-    setMasteredIds(mastered)
-    setProgressIndex(nextIdx)
-  }, [words])
+      if (!active) return
+      const masteredSet = new Set(mastered)
+      const normalizedStart = words.length > 0 ? ((rawIndex % words.length) + words.length) % words.length : 0
+      const nextIdx = nextUnmasteredIndex(words, masteredSet, normalizedStart)
+      setMasteredIds(mastered)
+      setProgressIndex(nextIdx)
+    }
+
+    void bootstrap()
+    return () => {
+      active = false
+    }
+  }, [userId, words])
 
   useEffect(() => {
     writeJsonSafely(VOCAB_MASTERED_KEY, masteredIds)
@@ -139,6 +176,7 @@ export function VocabPage({ messages, locale, setLocale, todayVocabCount = 20, o
   const moveNext = (startFrom, extraMasteredSet = masteredSet) => {
     const next = nextUnmasteredIndex(words, extraMasteredSet, startFrom)
     setProgressIndex(next)
+    return next
   }
 
   const handleNotFamiliar = () => {
@@ -152,8 +190,14 @@ export function VocabPage({ messages, locale, setLocale, todayVocabCount = 20, o
     const id = String(current.id)
     const nextMasteredSet = new Set(masteredSet)
     nextMasteredSet.add(id)
-    setMasteredIds(Array.from(nextMasteredSet))
-    moveNext(progressIndex + 1, nextMasteredSet)
+    const nextMasteredIds = Array.from(nextMasteredSet)
+    setMasteredIds(nextMasteredIds)
+    const nextIndex = moveNext(progressIndex + 1, nextMasteredSet)
+    if (userId) {
+      void saveVocabProgress(userId, nextIndex < 0 ? 0 : nextIndex, nextMasteredIds).catch(() => {
+        // keep local state even if cloud write fails
+      })
+    }
     setFlipped(false)
   }
 
