@@ -46,7 +46,7 @@ export function GrammarPage({ messages, locale, language = locale, setLocale, on
   const introParas = [
     language === 'zh' ? lesson.explanation_zh : lesson.explanation_en,
     ...(Array.isArray(lesson.examples_de) && lesson.examples_de.length
-      ? [`${language === 'zh' ? '例句：' : 'Examples:'} ${lesson.examples_de.join(' / ')}`]
+      ? [`${g.examplesPrefix} ${lesson.examples_de.join(' / ')}`]
       : []),
   ]
 
@@ -89,13 +89,13 @@ export function GrammarPage({ messages, locale, language = locale, setLocale, on
   )
 
   return (
-    <div className="min-h-dvh bg-white px-6 py-10 pb-40 text-slate-900">
+    <div className="min-h-dvh bg-[#FAFAFA] px-6 py-10 pb-40 text-slate-900">
       <div className="mx-auto w-full max-w-md">
         <div className="mb-8 flex items-start justify-between gap-3">
           <button
             type="button"
             onClick={onBack}
-            className="pt-0.5 text-left text-sm font-medium text-slate-500 transition hover:text-emerald-700"
+            className="pt-0.5 text-left text-sm font-medium text-[var(--accent)] transition hover:underline"
           >
             {g.back}
           </button>
@@ -103,8 +103,8 @@ export function GrammarPage({ messages, locale, language = locale, setLocale, on
         </div>
 
         <header className="mb-8 rounded-2xl border border-slate-200 bg-slate-50/90 px-5 py-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{g.sectionLabel}</p>
-          <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{title}</h1>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--accent)]">{g.sectionLabel}</p>
+          <h1 className="mt-2 text-xl font-bold tracking-tight text-[#6C5CE7] sm:text-2xl">{title}</h1>
           <div className="mt-4 space-y-2 text-sm leading-relaxed text-slate-600">
             {introParas.map((para, i) => (
               <p key={i}>{para}</p>
@@ -119,7 +119,7 @@ export function GrammarPage({ messages, locale, language = locale, setLocale, on
             className="flex w-full items-center justify-between text-left"
           >
             <span className="text-sm font-semibold text-slate-800">{g.tipsTitle}</span>
-            <span className="text-xs font-medium text-emerald-700">
+            <span className="text-xs font-medium text-[var(--accent)]">
               {tipsOpen ? g.tipsHide : g.tipsShow}
             </span>
           </button>
@@ -153,8 +153,8 @@ export function GrammarPage({ messages, locale, language = locale, setLocale, on
             const qType = language === 'zh' ? q.type_zh : q.type_en
 
             return (
-              <li key={qIndex} className="pl-1">
-                <p className="mb-2 inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200">
+              <li key={qIndex} className="rounded-xl border border-[var(--border)] bg-white p-4 pl-4 shadow-sm">
+                <p className="mb-2 inline-flex rounded-full bg-[#ede9fe] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#6C5CE7] ring-1 ring-[#ddd6fe]">
                   {qType}
                 </p>
                 <p className="mb-3 text-base font-medium leading-snug text-slate-900">{q.question}</p>
@@ -165,13 +165,16 @@ export function GrammarPage({ messages, locale, language = locale, setLocale, on
                     let box =
                       'rounded-xl border-2 px-3 py-2.5 text-left text-sm font-medium transition'
                     if (!locked) {
-                      box += ' border-slate-200 bg-white text-slate-800 hover:border-emerald-300 hover:bg-emerald-50/50'
+                      box += ' border-slate-200 bg-white text-slate-800 hover:border-[#6C5CE7]'
                     } else if (isCorrect) {
-                      box += ' border-emerald-500 bg-emerald-50 text-emerald-900'
+                      box += ' border-green-500 bg-green-50 text-green-900'
                     } else if (isPicked && !isCorrect) {
                       box += ' border-rose-500 bg-rose-50 text-rose-900'
                     } else {
                       box += ' border-slate-100 bg-slate-50 text-slate-400'
+                    }
+                    if (isPicked && !locked) {
+                      box += ' border-[#6C5CE7] bg-[#6C5CE7] text-white'
                     }
 
                     return (
@@ -216,24 +219,24 @@ export function GrammarPage({ messages, locale, language = locale, setLocale, on
           <button
             type="button"
             onClick={() => setPage(1)}
-            className="mt-8 w-full rounded-xl bg-emerald-600 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            className="mt-8 w-full rounded-xl bg-[#FDCB6E] py-4 text-base font-semibold text-black shadow-sm transition hover:brightness-105"
           >
             {g.nextPartButton}
           </button>
         )}
 
         {allAnswered && (
-          <footer className="mt-10 space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-5 py-6 text-center">
-            <p className="text-lg font-semibold text-emerald-900">
+          <footer className="mt-10 space-y-4 rounded-2xl border border-[#ddd6fe] bg-[#f5f3ff] px-5 py-6 text-center">
+            <p className="text-lg font-semibold text-[#6C5CE7]">
               {score}/{total}
             </p>
-            <p className="text-sm font-semibold text-emerald-800">
+            <p className="text-sm font-semibold text-[#6C5CE7]">
               {scoreBand}
             </p>
             <button
               type="button"
               onClick={onBack}
-              className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+              className="w-full rounded-xl bg-[#6C5CE7] py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5B4BD7]"
             >
               {g.backToDashboard}
             </button>
@@ -250,7 +253,7 @@ export function GrammarPage({ messages, locale, language = locale, setLocale, on
                     href={res.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-sm font-medium text-emerald-700 underline decoration-emerald-300 underline-offset-4 hover:text-emerald-800"
+                    className="text-sm font-medium text-[#6C5CE7] underline decoration-[#c4b5fd] underline-offset-4 hover:text-[#5B4BD7]"
                   >
                     {language === 'zh'
                       ? res.name_zh || res.name

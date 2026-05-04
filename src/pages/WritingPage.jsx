@@ -297,13 +297,13 @@ ${essay}`
   }
 
   return (
-    <div className="min-h-dvh bg-white px-6 py-10 text-slate-900">
+    <div className="min-h-dvh bg-[#FAFAFA] px-6 py-10 text-slate-900">
       <div className="mx-auto w-full max-w-5xl">
         <div className="mb-8 flex items-start justify-between gap-3">
           <button
             type="button"
             onClick={onBack}
-            className="pt-0.5 text-left text-sm font-medium text-slate-500 transition hover:text-emerald-700"
+            className="pt-0.5 text-left text-sm font-medium text-[var(--accent)] transition hover:underline"
           >
             {w.back}
           </button>
@@ -317,7 +317,7 @@ ${essay}`
 
         <header className="mb-6 rounded-2xl border border-slate-200 bg-slate-50/90 px-5 py-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{w.sectionLabel}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#6C5CE7]">{w.sectionLabel}</p>
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
                 {weekInfo}
@@ -326,7 +326,7 @@ ${essay}`
                 {dayInfo}
               </span>
               {task && (
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                <span className="rounded-lg bg-[#6C5CE7] px-3 py-1 text-xs font-semibold text-white">
                   {language === 'zh' ? task.teil_zh : task.teil_en}
                 </span>
               )}
@@ -344,11 +344,11 @@ ${essay}`
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
               <p className="text-xs font-semibold uppercase text-slate-500">{timerLabel}</p>
-              <p className="mt-1 text-lg font-bold text-emerald-700">{formatRemaining(remainingSeconds)}</p>
+              <p className="mt-1 text-lg font-bold text-[#6C5CE7]">{formatRemaining(remainingSeconds)}</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
               <p className="text-xs font-semibold uppercase text-slate-500">{coverageLabel}</p>
-              <p className="mt-1 text-lg font-bold text-emerald-700">
+              <p className="mt-1 text-lg font-bold text-[#6C5CE7]">
                 {feedback
                   ? `${feedback.keyPointCoverage.covered}/${feedback.keyPointCoverage.total}`
                   : `${checkedCount}/${requirementsSafe.length}`}
@@ -356,7 +356,7 @@ ${essay}`
             </div>
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
               <p className="text-xs font-semibold uppercase text-slate-500">{selfCheckLabel}</p>
-              <p className="mt-1 text-lg font-bold text-emerald-700">
+              <p className="mt-1 text-lg font-bold text-[#6C5CE7]">
                 {checkedCount}/{requirementsSafe.length}
               </p>
             </div>
@@ -373,7 +373,7 @@ ${essay}`
                     type="checkbox"
                     checked={Boolean(requirementChecks[idx])}
                     onChange={() => toggleRequirement(idx)}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-400"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#6C5CE7] focus:ring-[#6C5CE7]"
                   />
                   <span className="text-sm text-slate-800">{item}</span>
                 </label>
@@ -392,7 +392,7 @@ ${essay}`
                 value={essay}
                 onChange={(e) => setEssay(e.target.value)}
                 placeholder={w.placeholder}
-                className="min-h-72 w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-4 text-base leading-relaxed text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                className="min-h-72 w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-4 text-base leading-relaxed text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#ece8ff]"
               />
               <div className="mt-3 flex items-center justify-between text-sm">
                 <span className="text-slate-500">{w.wordCount.replace('{n}', String(wordCount))}</span>
@@ -402,7 +402,7 @@ ${essay}`
                 type="button"
                 onClick={handleSubmit}
                 disabled={loading || essay.trim().length === 0}
-                className="mt-4 w-full rounded-xl bg-emerald-600 py-3.5 text-base font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+                className="mt-4 w-full rounded-xl bg-gradient-to-r from-[#6C5CE7] to-[#8B5CF6] py-3.5 text-base font-semibold text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
               >
                 {loading ? w.loading : w.submit}
               </button>
@@ -424,7 +424,7 @@ ${essay}`
               <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <h2 className="font-semibold text-slate-900">📊 {w.scoreTitle}</h2>
-                  <p className="mt-2 text-2xl font-bold text-emerald-700">
+                  <p className="mt-2 text-3xl font-bold text-[#6C5CE7]">
                     {formatScore(feedback.score, w.scoreFormat)}
                   </p>
                   <p className="mt-2 text-sm font-semibold text-emerald-800">

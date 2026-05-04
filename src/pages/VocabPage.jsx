@@ -162,6 +162,7 @@ export function VocabPage({
 
   const masteredSet = useMemo(() => new Set(masteredIds.map((id) => String(id))), [masteredIds])
   const unmasteredCount = Math.max(0, words.length - masteredSet.size)
+  const progressPct = words.length > 0 ? Math.round((masteredSet.size / words.length) * 100) : 0
   const current = progressIndex >= 0 ? words[progressIndex] : null
 
   const langSwitch = (
@@ -203,24 +204,24 @@ export function VocabPage({
 
   if (!current) {
     return (
-      <div className="flex min-h-dvh flex-col bg-white px-6 py-10 text-slate-900">
+      <div className="flex min-h-dvh flex-col bg-[var(--bg-primary)] px-6 py-10 text-[var(--text-primary)]">
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
           <div className="mb-8 flex items-start justify-between gap-3">
             <button
               type="button"
               onClick={onBack}
-              className="pt-0.5 text-left text-sm font-medium text-slate-500 transition hover:text-emerald-700"
+              className="pt-0.5 text-left text-sm font-medium text-[var(--accent)] transition hover:underline"
             >
               {v.back}
             </button>
             {langSwitch}
           </div>
           <div className="flex flex-1 flex-col items-center justify-center text-center">
-            <p className="text-lg font-semibold text-slate-800">{v.allDone}</p>
+            <p className="text-lg font-semibold text-[var(--text-primary)]">{v.allDone}</p>
             <button
               type="button"
               onClick={onBack}
-              className="mt-8 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+              className="fun-primary-btn mt-8 rounded-xl bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8]"
             >
               {v.backToDashboard}
             </button>
@@ -235,13 +236,13 @@ export function VocabPage({
   const exampleTranslation = locale === 'zh' ? current.example_zh : current.example_en
 
   return (
-    <div className="min-h-dvh bg-white px-6 py-10 pb-40 text-slate-900">
+    <div className="min-h-dvh bg-[var(--bg-primary)] px-6 py-10 pb-40 text-[var(--text-primary)]">
       <div className="mx-auto w-full max-w-md">
         <div className="mb-6 flex items-start justify-between gap-3">
           <button
             type="button"
             onClick={onBack}
-            className="pt-0.5 text-left text-sm font-medium text-slate-500 transition hover:text-emerald-700"
+            className="pt-0.5 text-left text-sm font-medium text-[var(--accent)] transition hover:underline"
           >
             {v.back}
           </button>
@@ -251,7 +252,10 @@ export function VocabPage({
         <p className="mb-2 text-center text-xs font-medium uppercase tracking-wide text-slate-400">
           {v.progressHint.replace('{n}', String(unmasteredCount))}
         </p>
-        <h1 className="mb-6 text-center text-xl font-semibold text-slate-900">{v.title}</h1>
+        <h1 className="mb-6 text-center text-xl font-semibold text-[var(--text-primary)]">{v.title}</h1>
+        <div className="mb-5 h-2 overflow-hidden rounded-full bg-[#ece8ff]">
+          <div className="h-full rounded-full bg-[#6C5CE7]" style={{ width: `${progressPct}%` }} />
+        </div>
 
         <div
           className="relative w-full cursor-pointer [perspective:1200px]"
@@ -272,7 +276,7 @@ export function VocabPage({
             }`}
           >
             <div
-              className="absolute inset-0 flex min-h-[22rem] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 shadow-sm [backface-visibility:hidden]"
+              className="absolute inset-0 flex min-h-[22rem] flex-col items-center justify-center rounded-2xl border border-transparent bg-gradient-to-br from-[#6C5CE7] to-[#8B5CF6] p-8 shadow-sm [backface-visibility:hidden]"
               aria-hidden={flipped}
             >
               <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
@@ -282,19 +286,19 @@ export function VocabPage({
                   {typeDisplayLabel(current.type, labels)}
                 </span>
                 {current.frequency && (
-                  <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700 ring-1 ring-slate-300/80">
+                  <span className="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white ring-1 ring-white/40">
                     {(labels.frequency ?? 'frequency')}: {frequencyDisplay(current.frequency, locale, labels)}
                   </span>
                 )}
               </div>
-              <p className="text-center text-4xl font-bold leading-tight tracking-tight text-slate-900 sm:text-5xl">
+              <p className="text-center text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
                 {current.word}
               </p>
-              <p className="mt-8 text-center text-xs text-slate-400">{v.flipHint}</p>
+              <p className="mt-8 text-center text-xs text-white/80">{v.flipHint}</p>
             </div>
 
             <div
-              className="absolute inset-0 flex min-h-[22rem] flex-col rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm [backface-visibility:hidden] [transform:rotateY(180deg)]"
+              className="absolute inset-0 flex min-h-[22rem] flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-sm [backface-visibility:hidden] [transform:rotateY(180deg)]"
               aria-hidden={!flipped}
             >
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 text-sm">
@@ -308,13 +312,13 @@ export function VocabPage({
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     {labels.collocation}
                   </p>
-                  <p className="mt-1 font-medium text-emerald-900">{current.collocation}</p>
+                  <p className="mt-1 font-medium text-[#6C5CE7]">{current.collocation}</p>
                 </section>
                 <section>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     {labels.exampleDe}
                   </p>
-                  <p className="mt-2 rounded-lg bg-white/80 px-3 py-2 text-slate-900 ring-1 ring-slate-200/80">
+                  <p className="mt-2 rounded-lg bg-[#f7fbff] px-3 py-2 text-slate-900 ring-1 ring-slate-200/80">
                     {current.example_de}
                   </p>
                   <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -332,14 +336,14 @@ export function VocabPage({
           <button
             type="button"
             onClick={handleNotFamiliar}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#d1d5db] bg-white py-3.5 text-sm font-semibold text-[var(--text-secondary)] shadow-sm transition hover:bg-[#f3f4f6]"
           >
             {v.notFamiliar}
           </button>
           <button
             type="button"
             onClick={handleMastered}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            className="fun-primary-btn flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FDCB6E] py-3.5 text-sm font-semibold text-black shadow-sm transition hover:brightness-105"
           >
             {v.mastered}
           </button>

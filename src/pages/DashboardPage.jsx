@@ -1,33 +1,45 @@
 import { useEffect, useMemo, useState } from 'react'
-import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
+import { PLAN_STORAGE_KEY, generatePlan, getDayIndex, getTodayTasks } from '../utils/planGenerator.js'
 import * as checkin from '../utils/checkin.js'
-import { getPlan, saveCheckin } from '../lib/db.js'
-import {
-  PLAN_STORAGE_KEY,
-  generatePlan,
-  getDayIndex,
-  getTodayTasks,
-} from '../utils/planGenerator.js'
+import zh from '../i18n/zh.js'
+import en from '../i18n/en.js'
 
-const TASK_IDS = ['vocab', 'grammar', 'listening', 'speaking', 'writing']
-
-const TASK_ICONS = {
-  vocab: '📚',
-  grammar: '📖',
-  listening: '🎧',
-  speaking: '🎙️',
-  writing: '✍️',
-}
-
-const STREAK_SESSION_KEY = 'goethe-dismiss-streak'
 const TASKS_STORAGE_PREFIX = 'tasks_'
 const CHECKIN_STORAGE_PREFIX = 'checkin_'
 
-function isoDateString(date = new Date()) {
-  return date.toISOString().split('T')[0]
+const TASK_CONFIG = [
+  {
+    id: 'vocab',
+    emoji: '📚',
+    iconBg: '#EEF2FF',
+  },
+  {
+    id: 'grammar',
+    emoji: '🧠',
+    iconBg: '#F3E8FF',
+  },
+  {
+    id: 'listening',
+    emoji: '🎧',
+    iconBg: '#FFF0F3',
+  },
+  {
+    id: 'speaking',
+    emoji: '🎤',
+    iconBg: '#FFF7E6',
+  },
+  {
+    id: 'writing',
+    emoji: '✍️',
+    iconBg: '#F0FFF4',
+  },
+]
+
+function formatYmd(date = new Date()) {
+  return date.toISOString().slice(0, 10)
 }
 
-function readJsonSafely(key, fallback) {
+function readJson(key, fallback) {
   if (typeof localStorage === 'undefined') return fallback
   try {
     const raw = localStorage.getItem(key)
@@ -37,572 +49,780 @@ function readJsonSafely(key, fallback) {
   }
 }
 
-function writeJsonSafely(key, value) {
-  if (typeof localStorage === 'undefined') return
+function getTaskSnapshots() {
+  if (typeof localStorage === 'undefined') return []
+  const rows = []
   try {
-    localStorage.setItem(key, JSON.stringify(value))
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith(TASKS_STORAGE_PREFIX)) continue
+      const date = key.slice(TASKS_STORAGE_PREFIX.length)
+      const data = readJson(key, {})
+      if (data && typeof data === 'object') {
+        rows.push({ date, data })
+      }
+    }
   } catch {
-    // ignore storage failures
+    return []
   }
+  return rows
 }
 
-function clearPlanAndCheckinStorage() {
-  if (typeof localStorage === 'undefined') return
-  try {
-    localStorage.clear()
-  } catch {
-    // ignore storage failures
+function getCheckinMap() {
+  if (typeof localStorage === 'undefined') return new Map()
+  const map = new Map()
+  const dailyRecords = readJson('goethe-ready-daily-records', {})
+  if (dailyRecords && typeof dailyRecords === 'object') {
+    for (const [date, rec] of Object.entries(dailyRecords)) {
+      map.set(date, rec)
+    }
   }
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith(CHECKIN_STORAGE_PREFIX)) continue
+      const date = key.slice(CHECKIN_STORAGE_PREFIX.length)
+      const rec = readJson(key, null)
+      if (rec && typeof rec === 'object') {
+        map.set(String(rec.date || date), rec)
+      } else {
+        map.set(date, { date })
+      }
+    }
+  } catch {
+    // ignore iteration failures
+  }
+  return map
+}
+
+function calcStreakFromCheckin(todayYmd, checkinMap) {
+  let streak = 0
+  const cursor = new Date(`${todayYmd}T00:00:00`)
+  for (let i = 0; i < 400; i++) {
+    const key = cursor.toISOString().slice(0, 10)
+    if (!checkinMap.has(key)) break
+    streak += 1
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  return streak
+}
+
+function readEmailInitial(userId) {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const allKeys = Object.keys(localStorage)
+      for (const key of allKeys) {
+        if (!key.includes('auth-token')) continue
+        const token = readJson(key, null)
+        const email =
+          token?.user?.email ||
+          token?.currentSession?.user?.email ||
+          token?.session?.user?.email ||
+          token?.email
+        if (typeof email === 'string' && email.trim()) {
+          return email.trim().charAt(0).toUpperCase()
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  if (typeof userId === 'string' && userId.trim()) return userId.trim().charAt(0).toUpperCase()
+  return 'U'
+}
+
+function calcGrammarAccuracyFromStorage() {
+  if (typeof localStorage === 'undefined') return null
+  const ratios = []
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (!key.toLowerCase().includes('grammar')) continue
+      const val = readJson(key, null)
+      const queue = Array.isArray(val) ? val : [val]
+      for (const item of queue) {
+        if (!item || typeof item !== 'object') continue
+        const accuracy = Number(item.accuracy ?? item.correct_rate ?? item.rate ?? NaN)
+        if (!Number.isNaN(accuracy)) {
+          ratios.push(accuracy > 1 ? accuracy : accuracy * 100)
+          continue
+        }
+        const correct = Number(item.correct ?? item.correctCount ?? item.correct_answers ?? NaN)
+        const total = Number(item.total ?? item.totalCount ?? item.question_count ?? NaN)
+        if (!Number.isNaN(correct) && !Number.isNaN(total) && total > 0) {
+          ratios.push((correct / total) * 100)
+        }
+      }
+    }
+  } catch {
+    return null
+  }
+  if (ratios.length === 0) return null
+  return Math.round(ratios.reduce((sum, n) => sum + n, 0) / ratios.length)
 }
 
 /**
  * @param {{
- *   messages: { dashboard: Record<string, unknown>; home: { levels: Record<string, string>; languageSwitchZh: string; languageSwitchEn: string } }
- *   locale: 'zh' | 'en'
- *   setLocale: (locale: 'zh' | 'en') => void
  *   userId?: string | null
  *   days: string
  *   levelId: string
- *   levelLabel: string
  *   onBack?: () => void
+ *   syncOk?: boolean
+ *   onSignOut?: () => void
  *   onStartVocab?: (count: number) => void
  *   onStartGrammar?: () => void
  *   onStartListening?: () => void
  *   onStartWriting?: () => void
  *   onStartSpeaking?: () => void
- *   onViewProgress?: () => void
  * }} props
  */
-export function DashboardPage({
-  messages,
-  locale,
-  setLocale,
-  userId = null,
-  days,
-  levelId,
-  levelLabel,
-  onBack,
-  onStartVocab,
-  onStartGrammar,
-  onStartListening,
-  onStartWriting,
-  onStartSpeaking,
-  onViewProgress,
-}) {
-  const { dashboard: d, home: h } = messages
-  const [remotePlanPayload, setRemotePlanPayload] = useState(null)
-  const effectiveLevelId = remotePlanPayload?.level || levelId
-  const levelDisplay = (effectiveLevelId && h.levels[effectiveLevelId]) || levelLabel
-
-  const todayStr = useMemo(() => isoDateString(new Date()), [])
-  const storedStudyPlan = useMemo(() => {
-    if (typeof localStorage === 'undefined') return null
-    try {
-      const raw = localStorage.getItem(PLAN_STORAGE_KEY)
-      return raw ? JSON.parse(raw) : null
-    } catch {
-      return null
+export function DashboardPage(props) {
+  const {
+    userId = null,
+    locale = 'zh',
+    days,
+    levelId,
+    onBack,
+    syncOk = true,
+    onSignOut,
+    onViewProgress,
+    onStartVocab,
+    onStartGrammar,
+    onStartListening,
+    onStartWriting,
+    onStartSpeaking,
+  } = props
+  const language = locale === 'en' ? 'en' : 'zh'
+  const t = (key) => {
+    const keys = key.split('.')
+    let result = language === 'zh' ? zh : en
+    for (const k of keys) {
+      result = result?.[k]
     }
-  }, [])
-
-  const activePlan = useMemo(() => {
-    return (
-      remotePlanPayload?.plan ??
-      storedStudyPlan?.plan ??
-      generatePlan(remotePlanPayload?.days || days, effectiveLevelId)
-    )
-  }, [days, effectiveLevelId, remotePlanPayload, storedStudyPlan])
-
-  const dayIndex = useMemo(() => {
-    const startDate = remotePlanPayload?.startDate || storedStudyPlan?.startDate
-    return startDate ? getDayIndex(startDate) : 1
-  }, [remotePlanPayload, storedStudyPlan])
-
-  const todayPlan = useMemo(() => getTodayTasks(activePlan, dayIndex), [activePlan, dayIndex])
-
-  const taskDefs = useMemo(() => {
-    const taskMsgs = d.tasks
-    const ids = TASK_IDS.filter((id) => {
-      if (id === 'vocab') return todayPlan.todayVocab > 0
-      if (id === 'grammar') return todayPlan.todayGrammar
-      if (id === 'listening') return todayPlan.todayListening
-      if (id === 'speaking') return true
-      if (id === 'writing') return todayPlan.todayWriting
-      return true
-    })
-
-    return ids.map((id) => {
-      const t = taskMsgs[id]
-      return {
-        id,
-        icon: TASK_ICONS[id],
-        title: t.title,
-        description:
-          id === 'vocab'
-            ? d.vocabTodayDescription.replace('{n}', String(todayPlan.todayVocab))
-            : t.description,
-        isMakeup: false,
-        rowKey: id,
-        baseId: id,
-      }
-    })
-  }, [d.tasks, d.vocabTodayDescription, todayPlan])
-
-  const makeupRaw = useMemo(() => {
-    const map = checkin.getMakeupByDate()
-    return map[todayStr] || []
-  }, [todayStr])
-
-  const makeupTaskDefs = useMemo(() => {
-    return makeupRaw.map((baseId, idx) => {
-      const t = d.tasks[baseId]
-      return {
-        id: baseId,
-        baseId,
-        rowKey: `${baseId}__mk__${idx}`,
-        isMakeup: true,
-        icon: TASK_ICONS[baseId],
-        title: t.title,
-        description: t.description,
-      }
-    })
-  }, [makeupRaw, d.tasks])
-
-  const [done, setDone] = useState({})
-  const [todayRecord, setTodayRecord] = useState(() => {
-    const fromDailyKey = readJsonSafely(`${CHECKIN_STORAGE_PREFIX}${todayStr}`, null)
-    if (fromDailyKey) return fromDailyKey
-    return checkin.getDailyRecords()[todayStr] || null
-  })
-  const [checkinBanner, setCheckinBanner] = useState(/** @type {string | null} */ (null))
-  const [modalTick, setModalTick] = useState(0)
-
-  useEffect(() => {
-    if (!userId) return
-    let active = true
-    const loadPlanFromCloud = async () => {
-      try {
-        const cloudPlan = await getPlan(userId)
-        if (!active || !cloudPlan) return
-        const cloudDays = String(cloudPlan.days ?? days)
-        const cloudLevel = String(cloudPlan.level ?? (effectiveLevelId || levelId))
-        const cloudStartDate = String(cloudPlan.start_date ?? todayStr)
-        const payload = {
-          days: cloudDays,
-          level: cloudLevel,
-          levelLabel: h.levels[cloudLevel] ?? levelLabel,
-          plan: generatePlan(cloudDays, cloudLevel),
-          startDate: cloudStartDate,
-        }
-        localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(payload))
-        setRemotePlanPayload(payload)
-      } catch {
-        // keep local fallback
-      }
-    }
-    void loadPlanFromCloud()
-    return () => {
-      active = false
-    }
-  }, [days, effectiveLevelId, h.levels, levelId, levelLabel, todayStr, userId])
-
-  useEffect(() => {
-    const allowed = new Set([...taskDefs.map((t) => t.rowKey), ...makeupTaskDefs.map((t) => t.rowKey)])
-    const stored = readJsonSafely(`${TASKS_STORAGE_PREFIX}${todayStr}`, {})
-    const next = {}
-    for (const key of allowed) {
-      next[key] = Boolean(stored[key])
-    }
-    setDone(next)
-  }, [taskDefs, makeupTaskDefs, todayStr])
-
-  useEffect(() => {
-    if (Object.keys(done).length === 0) return
-    writeJsonSafely(`${TASKS_STORAGE_PREFIX}${todayStr}`, done)
-  }, [done, todayStr])
-
-  useEffect(() => {
-    const fromDailyKey = readJsonSafely(`${CHECKIN_STORAGE_PREFIX}${todayStr}`, null)
-    if (fromDailyKey) {
-      setTodayRecord(fromDailyKey)
-      return
-    }
-    setTodayRecord(checkin.getDailyRecords()[todayStr] || null)
-  }, [todayStr, modalTick])
-
-  const streakEligible = useMemo(() => {
-    void modalTick
-    const records = checkin.getDailyRecords()
-    if (Object.keys(records).length === 0) return false
-    return checkin.countConsecutiveDaysWithoutCheckin(todayStr) >= 3
-  }, [todayStr, modalTick])
-
-  const streakSessionDismissed =
-    typeof sessionStorage !== 'undefined' && sessionStorage.getItem(STREAK_SESSION_KEY)
-  const showStreakModal = streakEligible && !streakSessionDismissed
-
-  const allRows = useMemo(() => [...taskDefs, ...makeupTaskDefs], [taskDefs, makeupTaskDefs])
-
-  const toggleTask = (rowKey) => {
-    setDone((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }))
+    return result || key
   }
 
-  const total = allRows.length
-  const completed = allRows.filter((t) => done[t.rowKey]).length
-  const allDone = total > 0 && completed === total
+  const todayYmd = useMemo(() => formatYmd(new Date()), [])
+  const [refreshTick, setRefreshTick] = useState(0)
+  const [done, setDone] = useState(() => {
+    const raw = readJson(`${TASKS_STORAGE_PREFIX}${todayYmd}`, {})
+    const next = {}
+    for (const task of TASK_CONFIG) next[task.id] = Boolean(raw[task.id])
+    return next
+  })
+  const [todayRecord, setTodayRecord] = useState(() => {
+    const direct = readJson(`${CHECKIN_STORAGE_PREFIX}${todayYmd}`, null)
+    if (direct) return direct
+    const records = readJson('goethe-ready-daily-records', {})
+    return records?.[todayYmd] || null
+  })
+  const [checkinBanner, setCheckinBanner] = useState('')
 
-  const remainingDays = Math.max(0, activePlan.days - dayIndex + 1)
-  const daysDisplay = Number.isNaN(remainingDays) ? days : remainingDays
-  const isSprint = todayPlan.isSprintMode
+  useEffect(() => {
+    const next = {}
+    for (const task of TASK_CONFIG) next[task.id] = Boolean(done[task.id])
+    try {
+      localStorage.setItem(`${TASKS_STORAGE_PREFIX}${todayYmd}`, JSON.stringify(next))
+    } catch {
+      // ignore storage failures
+    }
+  }, [done, todayYmd])
+
+  const storedPlan = useMemo(() => readJson(PLAN_STORAGE_KEY, null), [])
+  const effectiveDays = String(storedPlan?.days ?? days ?? '80')
+  const effectiveLevelId = storedPlan?.level ?? levelId ?? 'beginner'
+  const generatedPlan = useMemo(
+    () => storedPlan?.plan ?? generatePlan(effectiveDays, effectiveLevelId),
+    [effectiveDays, effectiveLevelId, storedPlan],
+  )
+  const dayIndex = useMemo(() => {
+    const startDate = storedPlan?.startDate
+    if (!startDate) return 1
+    return getDayIndex(startDate)
+  }, [storedPlan])
+  const todayPlan = useMemo(() => getTodayTasks(generatedPlan, dayIndex), [generatedPlan, dayIndex])
+  const remainingDays = Math.max(0, Number(generatedPlan.days || effectiveDays) - dayIndex + 1)
+
+  const levelLabelMap = {
+    beginner: String(t('dashboard.levelBeginner')),
+    a1a2: 'A1-A2',
+    b1: 'B1',
+  }
+  const levelDisplay = levelLabelMap[effectiveLevelId] || effectiveLevelId || levelLabelMap.beginner
+
+  const taskSnapshots = useMemo(() => getTaskSnapshots(), [refreshTick, done])
+  const checkinMap = useMemo(() => getCheckinMap(), [refreshTick, todayRecord])
+  const streakDays = useMemo(() => calcStreakFromCheckin(todayYmd, checkinMap), [todayYmd, checkinMap])
+
+  const completedTasksCumulative = useMemo(() => {
+    let n = 0
+    for (const row of taskSnapshots) {
+      for (const value of Object.values(row.data)) {
+        if (value === true) n += 1
+      }
+    }
+    return n
+  }, [taskSnapshots])
+  const expPoints = completedTasksCumulative * 100
+
+  const doneCount = TASK_CONFIG.filter((task) => Boolean(done[task.id])).length
+  const todayCheckinRecord = checkinMap.get(todayYmd)
+  const todayVocab = Number(todayCheckinRecord?.vocab_count ?? 0) || 0
+  const grammarAccuracy = useMemo(() => calcGrammarAccuracyFromStorage(), [])
+
+  const vocabMastered = useMemo(() => {
+    const arr = readJson('vocab_mastered', [])
+    return Array.isArray(arr) ? arr.length : 0
+  }, [])
+  const vocabProgressPct = Math.max(0, Math.min(100, Math.round((vocabMastered / 2704) * 100)))
+
+  const userInitial = readEmailInitial(userId)
+
+  const taskDescription = {
+    vocab: String(t('dashboard.vocabDesc')).replace('{n}', String(todayPlan.todayVocab || 0)),
+    grammar: String(t('dashboard.grammarDesc')),
+    listening: String(t('dashboard.listeningDesc')),
+    speaking: String(t('dashboard.speakingDesc')),
+    writing: String(t('dashboard.writingDesc')),
+  }
+
+  const startTask = (taskId) => {
+    if (taskId === 'vocab') onStartVocab?.(Number(todayPlan.todayVocab || 20))
+    if (taskId === 'grammar') onStartGrammar?.()
+    if (taskId === 'listening') onStartListening?.()
+    if (taskId === 'speaking') onStartSpeaking?.()
+    if (taskId === 'writing') onStartWriting?.()
+  }
+
+  const toggleTaskDone = (taskId) => {
+    setDone((prev) => ({ ...prev, [taskId]: !prev[taskId] }))
+  }
 
   const handleCheckin = () => {
     if (todayRecord) return
-
-    const missedSet = new Set()
-    const completedSet = new Set()
-    for (const row of allRows) {
-      const base = row.baseId
-      if (done[row.rowKey]) completedSet.add(base)
-      else missedSet.add(base)
-    }
-    const missed = [...missedSet]
-    const completedList = [...completedSet]
+    const completed = TASK_CONFIG.filter((task) => done[task.id]).map((task) => task.id)
+    const missed = TASK_CONFIG.filter((task) => !done[task.id]).map((task) => task.id)
     const isFull = missed.length === 0
-
-    checkin.saveDailyCheckin(todayStr, {
-      completed: completedList,
+    const vocabCount = done.vocab ? Number(todayPlan.todayVocab || 0) : 0
+    const payload = {
+      date: todayYmd,
+      completed,
       missed,
       isFull,
-    })
-    writeJsonSafely(`${CHECKIN_STORAGE_PREFIX}${todayStr}`, {
-      date: todayStr,
-      completed: completedList,
-      missed,
-      isFull,
-    })
-    setTodayRecord({
-      date: todayStr,
-      completed: completedList,
-      missed,
-      isFull,
-    })
-
-    if (missed.length) {
-      checkin.applyMissedCompensation(missed, todayStr)
+      vocab_count: vocabCount,
     }
+
+    checkin.saveDailyCheckin(todayYmd, {
+      completed,
+      missed,
+      isFull,
+    })
+    if (missed.length > 0) {
+      checkin.applyMissedCompensation(missed, todayYmd)
+    }
+    try {
+      localStorage.setItem(`${CHECKIN_STORAGE_PREFIX}${todayYmd}`, JSON.stringify(payload))
+    } catch {
+      // ignore storage failures
+    }
+    setTodayRecord(payload)
+    setRefreshTick((n) => n + 1)
 
     if (isFull) {
-      const streak = checkin.computeFullCompletionStreak(todayStr)
-      setCheckinBanner(d.checkinSuccess.replace('{n}', String(streak)))
+      const streak = checkin.computeFullCompletionStreak(todayYmd)
+      setCheckinBanner(String(t('dashboard.checkinFullMsg')).replace('{n}', String(streak)))
     } else {
-      setCheckinBanner(d.checkinPartial)
+      setCheckinBanner(String(t('dashboard.checkinPartialMsg')))
     }
-
-    if (userId) {
-      const vocabCount = completedSet.has('vocab') ? todayPlan.todayVocab : 0
-      void saveCheckin(userId, todayStr, completedList, vocabCount, isFull).catch(() => {
-        // do not block UX when cloud write fails
-      })
-    }
-  }
-
-  const handleContinuePlan = () => {
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.setItem(STREAK_SESSION_KEY, '1')
-    }
-    setModalTick((n) => n + 1)
-  }
-
-  const handleResetPlan = () => {
-    checkin.clearMakeupAndResetPlan()
-    clearPlanAndCheckinStorage()
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.setItem(STREAK_SESSION_KEY, '1')
-    }
-    setModalTick((n) => n + 1)
-    onBack?.()
-  }
-
-  const renderTaskCard = (task) => {
-    const isDone = done[task.rowKey]
-    return (
-      <li key={task.rowKey} className="list-none">
-        <div
-          className={`overflow-hidden rounded-xl border transition ${
-            isDone ? 'border-emerald-200 bg-emerald-50/60' : 'border-slate-200 bg-white'
-          }`}
-        >
-          <button
-            type="button"
-            onClick={() => toggleTask(task.rowKey)}
-            aria-pressed={isDone}
-            className={`flex w-full cursor-pointer items-center gap-4 px-4 py-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 ${
-              isDone ? '' : 'hover:bg-slate-50/80'
-            }`}
-          >
-            <span className="text-2xl" aria-hidden>
-              {task.icon}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-semibold text-slate-900">{task.title}</p>
-                {task.isMakeup && (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 ring-1 ring-amber-200">
-                    {d.makeupTag}
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-slate-600">{task.description}</p>
-            </div>
-            <span className="pointer-events-none shrink-0" aria-hidden>
-              {isDone ? (
-                <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-emerald-500 bg-emerald-500 text-white">
-                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path
-                      fillRule="evenodd"
-                      d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </span>
-              ) : (
-                <span className="block h-10 w-10 rounded-full border-2 border-slate-300 bg-white" />
-              )}
-            </span>
-          </button>
-          {!task.isMakeup && task.id === 'vocab' && onStartVocab && (
-            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
-              <button
-                type="button"
-                onClick={() => onStartVocab(todayPlan.todayVocab)}
-                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-              >
-                {d.startVocab}
-              </button>
-            </div>
-          )}
-          {!task.isMakeup && task.id === 'grammar' && onStartGrammar && (
-            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
-              <button
-                type="button"
-                onClick={onStartGrammar}
-                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-              >
-                {d.startGrammar}
-              </button>
-            </div>
-          )}
-          {task.isMakeup && task.baseId === 'vocab' && onStartVocab && (
-            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
-              <button
-                type="button"
-                onClick={() => onStartVocab(todayPlan.todayVocab)}
-                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-              >
-                {d.startVocab}
-              </button>
-            </div>
-          )}
-          {task.isMakeup && task.baseId === 'grammar' && onStartGrammar && (
-            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
-              <button
-                type="button"
-                onClick={onStartGrammar}
-                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-              >
-                {d.startGrammar}
-              </button>
-            </div>
-          )}
-          {!task.isMakeup && task.id === 'writing' && onStartWriting && (
-            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
-              <button
-                type="button"
-                onClick={onStartWriting}
-                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-              >
-                {d.startWriting}
-              </button>
-            </div>
-          )}
-          {!task.isMakeup && task.id === 'listening' && onStartListening && (
-            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
-              <button
-                type="button"
-                onClick={onStartListening}
-                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-              >
-                {d.startListening ?? d.startGrammar}
-              </button>
-            </div>
-          )}
-          {task.isMakeup && task.baseId === 'listening' && onStartListening && (
-            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
-              <button
-                type="button"
-                onClick={onStartListening}
-                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-              >
-                {d.startListening ?? d.startGrammar}
-              </button>
-            </div>
-          )}
-          {task.isMakeup && task.baseId === 'writing' && onStartWriting && (
-            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
-              <button
-                type="button"
-                onClick={onStartWriting}
-                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-              >
-                {d.startWriting}
-              </button>
-            </div>
-          )}
-          {!task.isMakeup && task.id === 'speaking' && onStartSpeaking && (
-            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
-              <button
-                type="button"
-                onClick={onStartSpeaking}
-                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-              >
-                {d.startSpeaking}
-              </button>
-            </div>
-          )}
-          {task.isMakeup && task.baseId === 'speaking' && onStartSpeaking && (
-            <div className="border-t border-slate-200/80 bg-white/60 px-4 py-3">
-              <button
-                type="button"
-                onClick={onStartSpeaking}
-                className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-              >
-                {d.startSpeaking}
-              </button>
-            </div>
-          )}
-        </div>
-      </li>
-    )
   }
 
   return (
-    <div className="min-h-dvh bg-white px-6 py-10 text-slate-900 sm:py-14">
-      <div className="mx-auto w-full max-w-md">
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <div className="min-w-0 pt-0.5">
-            {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                className="text-left text-sm font-medium text-slate-500 transition hover:text-emerald-700"
-              >
-                {d.backHome}
-              </button>
-            )}
+    <div style={{ background: '#F8F8FF', minHeight: '100vh', paddingBottom: 24 }}>
+      <nav
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '16px 24px',
+          background: '#fff',
+          borderBottom: '1px solid #f0f0f0',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: '#6C5CE7',
+              color: '#fff',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            G
           </div>
-          <LanguageSwitch
-            locale={locale}
-            setLocale={setLocale}
-            zhLabel={h.languageSwitchZh}
-            enLabel={h.languageSwitchEn}
-          />
+          <div>
+            <div style={{ fontWeight: 700, color: '#1a1a1a' }}>GoetheReady</div>
+            <div style={{ fontSize: 12, color: '#636e72', marginTop: 2 }}>{t('dashboard.brandSub')}</div>
+          </div>
         </div>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ background: '#FFF3E0', borderRadius: 20, padding: '6px 14px' }}>
+            <span style={{ color: '#FF6B35', fontWeight: 600, fontSize: 13 }}>
+              🔥 {streakDays} {t('dashboard.streak')}
+            </span>
+          </div>
+          <div style={{ background: '#FFF9E6', borderRadius: 20, padding: '6px 14px' }}>
+            <span style={{ color: '#FDCB6E', fontWeight: 600, fontSize: 13 }}>
+              ⭐ {expPoints}
+              {language === 'zh' ? t('dashboard.xpUnit') : ` ${t('dashboard.xpUnit')}`}
+            </span>
+          </div>
+          <span style={{ fontSize: 12, color: syncOk ? '#16A34A' : '#D97706', fontWeight: 600 }}>
+            {syncOk ? t('dashboard.syncOkSmall') : t('dashboard.syncIssue')}
+          </span>
+          {onSignOut && (
+            <button
+              type="button"
+              onClick={onSignOut}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#636e72',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                textUnderlineOffset: 2,
+                padding: 0,
+              }}
+            >
+              {t('dashboard.signOutNav')}
+            </button>
+          )}
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              background: '#EFEAFE',
+              color: '#6C5CE7',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {userInitial}
+          </div>
+        </div>
+      </nav>
+
+      <section style={{ padding: '24px 24px 0' }}>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: '#6C5CE7',
+              fontSize: 13,
+              cursor: 'pointer',
+              padding: 0,
+              marginBottom: 8,
+              fontWeight: 600,
+            }}
+          >
+            {t('dashboard.backHome')}
+          </button>
+        )}
+        <div style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a' }}>{t('dashboard.greeting')}</div>
+        <div style={{ fontSize: 14, color: '#636e72', marginTop: 4 }}>{t('dashboard.greetingSub')}</div>
         {onViewProgress && (
           <button
             type="button"
             onClick={onViewProgress}
-            className="mb-6 w-full rounded-xl border border-emerald-200 bg-emerald-50/80 py-3 text-sm font-semibold text-emerald-800 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+            style={{
+              marginTop: 12,
+              border: '1px solid #6C5CE7',
+              background: '#fff',
+              color: '#6C5CE7',
+              fontSize: 13,
+              fontWeight: 600,
+              borderRadius: 12,
+              padding: '8px 14px',
+              cursor: 'pointer',
+            }}
           >
-            {d.viewProgress}
+            {t('dashboard.viewProgress')}
           </button>
         )}
+      </section>
 
-        {isSprint && (
-          <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-center text-sm font-semibold leading-snug text-rose-900">
-            {d.sprintBanner}
+      <section
+        style={{
+          margin: '16px 24px',
+          background: 'linear-gradient(135deg, #6C5CE7 0%, #8B5CF6 50%, #A78BFA 100%)',
+          borderRadius: 20,
+          padding: '24px 28px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          color: '#fff',
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 13, opacity: 0.85 }}>
+            📅 {t('dashboard.daysLeft')}
           </div>
-        )}
-
-        <header className="mb-10 rounded-2xl border border-slate-200 bg-slate-50/80 px-5 py-5">
-          <p className="text-2xl font-semibold tracking-tight text-slate-900">
-            {d.daysLeft} <span className="text-emerald-600 tabular-nums">{daysDisplay}</span> {d.daysUnit}
-          </p>
-          <p className="mt-2 text-sm text-slate-600">
-            {d.currentLevelPrefix}
-            <span className="font-medium text-slate-800">{levelDisplay}</span>
-          </p>
-        </header>
-
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
-          {d.todayTasks}
-        </h2>
-
-        <ul className="flex flex-col gap-3">{allRows.map((task) => renderTaskCard(task))}</ul>
-
-        <section className="mt-6 space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-          {checkinBanner && (
-            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-center text-sm font-medium text-emerald-900 ring-1 ring-emerald-100">
-              {checkinBanner}
-            </p>
-          )}
-          {!todayRecord && (
-            <button
-              type="button"
-              onClick={handleCheckin}
-              className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-            >
-              {d.doneCheckin}
-            </button>
-          )}
-          {todayRecord && !checkinBanner && (
-            <p className="text-center text-xs font-medium text-slate-500">{d.alreadyCheckedIn}</p>
-          )}
-        </section>
-
-        <section className="mt-4 mb-8">
-          {allDone ? (
-            <p className="text-center text-base font-semibold text-emerald-700">{d.allDone}</p>
-          ) : (
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-medium text-slate-600">{d.progressLabel}</span>
-              <span className="tabular-nums text-base font-semibold text-emerald-700">
-                {completed}/{total} {d.progressSuffix}
-              </span>
-            </div>
-          )}
-        </section>
-      </div>
-
-      {showStreakModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
-            <p className="text-center text-base font-medium leading-relaxed text-slate-800">
-              {d.streakModalBody}
-            </p>
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
-              <button
-                type="button"
-                onClick={handleResetPlan}
-                className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700"
-              >
-                {d.resetPlan}
-              </button>
-              <button
-                type="button"
-                onClick={handleContinuePlan}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                {d.continuePlan}
-              </button>
-            </div>
+          <div style={{ marginTop: 4, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <span style={{ fontSize: 56, fontWeight: 900, lineHeight: 1 }}>{remainingDays}</span>
+            <span style={{ fontSize: 20 }}>{t('dashboard.daysUnit')}</span>
+          </div>
+          <div style={{ fontSize: 13, opacity: 0.8, marginTop: 4 }}>
+            {t('dashboard.level')}：{levelDisplay}
           </div>
         </div>
-      )}
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            background: 'rgba(255,255,255,0.2)',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <span style={{ fontSize: 40 }}>🏆</span>
+        </div>
+      </section>
+
+      <section
+        style={{
+          margin: '12px 24px',
+          background: 'linear-gradient(135deg, #FFF3E0, #FFEAA7)',
+          borderRadius: 16,
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            width: '40px',
+            height: '40px',
+            position: 'relative',
+            animation: 'jump 0.6s ease-in-out infinite alternate',
+            flexShrink: 0,
+          }}
+          aria-hidden
+        >
+          <div
+            style={{
+              width: '14px',
+              height: '14px',
+              background: '#6C5CE7',
+              borderRadius: '50%',
+              position: 'absolute',
+              top: 0,
+              left: '13px',
+            }}
+          />
+          <div
+            style={{
+              width: '3px',
+              height: '12px',
+              background: '#6C5CE7',
+              position: 'absolute',
+              top: '14px',
+              left: '19px',
+              borderRadius: '2px',
+            }}
+          />
+          <div
+            style={{
+              width: '10px',
+              height: '3px',
+              background: '#6C5CE7',
+              position: 'absolute',
+              top: '17px',
+              left: '10px',
+              borderRadius: '2px',
+              transform: 'rotate(-30deg)',
+              transformOrigin: 'right center',
+              animation: 'armLeft 0.6s ease-in-out infinite alternate',
+            }}
+          />
+          <div
+            style={{
+              width: '10px',
+              height: '3px',
+              background: '#6C5CE7',
+              position: 'absolute',
+              top: '17px',
+              left: '22px',
+              borderRadius: '2px',
+              transform: 'rotate(30deg)',
+              transformOrigin: 'left center',
+              animation: 'armRight 0.6s ease-in-out infinite alternate',
+            }}
+          />
+          <div
+            style={{
+              width: '3px',
+              height: '11px',
+              background: '#6C5CE7',
+              position: 'absolute',
+              top: '26px',
+              left: '15px',
+              borderRadius: '2px',
+              transform: 'rotate(-15deg)',
+              transformOrigin: 'top center',
+              animation: 'legLeft 0.6s ease-in-out infinite alternate',
+            }}
+          />
+          <div
+            style={{
+              width: '3px',
+              height: '11px',
+              background: '#6C5CE7',
+              position: 'absolute',
+              top: '26px',
+              left: '24px',
+              borderRadius: '2px',
+              transform: 'rotate(15deg)',
+              transformOrigin: 'top center',
+              animation: 'legRight 0.6s ease-in-out infinite alternate',
+            }}
+          />
+        </div>
+        <span style={{ fontSize: 14, color: '#8B6914', fontWeight: 500 }}>{t('dashboard.motivationMsg')}</span>
+      </section>
+
+      <section style={{ padding: '0 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0 12px' }}>
+          <span
+            style={{
+              width: 20,
+              height: 20,
+              border: '2px solid #6C5CE7',
+              borderRadius: '50%',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6C5CE7' }} />
+          </span>
+          <span style={{ fontSize: 18, fontWeight: 700 }}>{t('dashboard.todayTasks')}</span>
+        </div>
+        <div style={{ marginBottom: 12, fontSize: 13, color: '#636e72' }}>
+          {t('dashboard.todayProgress')}：{doneCount}/{TASK_CONFIG.length}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {TASK_CONFIG.map((task) => {
+            const isDone = Boolean(done[task.id])
+            return (
+              <div
+                key={task.id}
+                style={{
+                  background: '#fff',
+                  borderRadius: 16,
+                  padding: '16px 20px',
+                  border: isDone ? '1.5px solid #52C41A' : '1px solid #f0f0f0',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  position: 'relative',
+                }}
+              >
+                {isDone && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: 8,
+                      color: '#52C41A',
+                      fontWeight: 700,
+                      fontSize: 14,
+                    }}
+                  >
+                    ✓
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    style={{
+                      background: task.iconBg,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 22,
+                    }}
+                  >
+                    {task.emoji}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>{t(`dashboard.${task.id}`)}</div>
+                    <div style={{ fontSize: 12, color: '#636e72', marginTop: 2 }}>{taskDescription[task.id]}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleTaskDone(task.id)}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      background: isDone ? '#52C41A' : '#F2F2F2',
+                      color: isDone ? '#fff' : '#9CA3AF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                    aria-label={
+                      isDone ? t('dashboard.markIncomplete') : t('dashboard.markDone')
+                    }
+                  >
+                    {isDone ? '✓' : '>'}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => startTask(task.id)}
+                  style={{
+                    marginTop: 12,
+                    width: '100%',
+                    background: '#6C5CE7',
+                    borderRadius: 10,
+                    padding: '8px',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#fff',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {t('dashboard.start')}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+        <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={handleCheckin}
+            disabled={Boolean(todayRecord)}
+            style={{
+              flex: 1,
+              border: 'none',
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, #FDCB6E, #E17055)',
+              color: '#1a1a1a',
+              fontWeight: 700,
+              fontSize: 13,
+              padding: '10px 12px',
+              cursor: todayRecord ? 'not-allowed' : 'pointer',
+              opacity: todayRecord ? 0.5 : 1,
+            }}
+          >
+            {todayRecord ? t('dashboard.checkedIn') : t('dashboard.checkIn')}
+          </button>
+        </div>
+        {checkinBanner ? (
+          <div style={{ marginTop: 8, fontSize: 12, color: '#16A34A', fontWeight: 600 }}>{checkinBanner}</div>
+        ) : null}
+      </section>
+
+      <section style={{ padding: '0 24px' }}>
+        <div style={{ fontSize: 18, fontWeight: 700, margin: '24px 0 12px' }}>
+          ⚡ {t('dashboard.learningPath')}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #FDCB6E, #E17055)',
+              borderRadius: 16,
+              padding: 20,
+            }}
+          >
+            <div style={{ fontSize: 32, color: '#fff' }}>📖</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginTop: 12 }}>{t('dashboard.pathVocabTitle')}</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{t('dashboard.pathVocabSub')}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16, fontSize: 12, color: '#fff' }}>
+              <span>{t('dashboard.pathProgress')}</span>
+              <span>{vocabProgressPct}%</span>
+            </div>
+            <div style={{ marginTop: 4, background: 'rgba(255,255,255,0.3)', height: 4, borderRadius: 2 }}>
+              <div style={{ width: `${vocabProgressPct}%`, height: '100%', background: '#fff', borderRadius: 2 }} />
+            </div>
+          </div>
+
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #6C5CE7, #8B5CF6)',
+              borderRadius: 16,
+              padding: 20,
+            }}
+          >
+            <div style={{ fontSize: 32, color: '#fff' }}>⚡</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginTop: 12 }}>{t('dashboard.aiModeTitle')}</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{t('dashboard.aiModeSub')}</div>
+            <div style={{ marginTop: 16, fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>{t('dashboard.aiModeHint')}</div>
+          </div>
+
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #74B9FF, #0984E3)',
+              borderRadius: 16,
+              padding: 20,
+            }}
+          >
+            <div style={{ fontSize: 32, color: '#fff' }}>🎯</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginTop: 12 }}>{t('dashboard.examTitle')}</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{t('dashboard.examSub')}</div>
+            <div style={{ marginTop: 16, fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>{t('dashboard.examHint')}</div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr 1fr 1fr',
+          gap: 12,
+          padding: '16px 24px 32px',
+        }}
+      >
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, textAlign: 'center', border: '1px solid #f0f0f0' }}>
+          <div style={{ fontSize: 28, fontWeight: 900, color: '#6C5CE7' }}>{todayVocab}</div>
+          <div style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>{t('dashboard.vocabCount')}</div>
+        </div>
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, textAlign: 'center', border: '1px solid #f0f0f0' }}>
+          <div style={{ fontSize: 28, fontWeight: 900, color: '#74B9FF' }}>{doneCount}</div>
+          <div style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>{t('dashboard.completedTasks')}</div>
+        </div>
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, textAlign: 'center', border: '1px solid #f0f0f0' }}>
+          <div style={{ fontSize: 28, fontWeight: 900, color: '#FDCB6E' }}>{streakDays}</div>
+          <div style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>{t('dashboard.streak')}</div>
+        </div>
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, textAlign: 'center', border: '1px solid #f0f0f0' }}>
+          <div style={{ fontSize: 28, fontWeight: 900, color: '#E17055' }}>
+            {`${grammarAccuracy == null ? 0 : grammarAccuracy}%`}
+          </div>
+          <div style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>{t('dashboard.accuracy')}</div>
+        </div>
+      </section>
     </div>
   )
 }

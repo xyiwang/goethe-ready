@@ -49,8 +49,12 @@ export function ListeningPage({ messages, locale, setLocale, onBack, onComplete 
     onComplete?.()
   }
 
-  const renderCard = (item) => (
-    <article key={item.url} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+  const renderCard = (item, borderColor) => (
+    <article
+      key={item.url}
+      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      style={{ borderLeft: `4px solid ${borderColor}` }}
+    >
       <h3 className="text-base font-semibold text-slate-900">{item.title}</h3>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.description}</p>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -65,7 +69,7 @@ export function ListeningPage({ messages, locale, setLocale, onBack, onComplete 
         href={item.url}
         target="_blank"
         rel="noreferrer"
-        className="mt-4 inline-flex text-sm font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-4 hover:text-emerald-800"
+        className="mt-4 inline-flex rounded-lg border border-[#6C5CE7] px-3 py-1.5 text-sm font-semibold text-[#6C5CE7] transition hover:bg-[#6C5CE7] hover:text-white"
       >
         {l.openLink}
       </a>
@@ -73,13 +77,13 @@ export function ListeningPage({ messages, locale, setLocale, onBack, onComplete 
   )
 
   return (
-    <div className="min-h-dvh bg-white px-6 py-10 pb-16 text-slate-900">
+    <div className="min-h-dvh bg-[#FAFAFA] px-6 py-10 pb-16 text-slate-900">
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-8 flex items-start justify-between gap-3">
           <button
             type="button"
             onClick={onBack}
-            className="pt-0.5 text-left text-sm font-medium text-slate-500 transition hover:text-emerald-700"
+            className="pt-0.5 text-left text-sm font-medium text-[var(--accent)] transition hover:underline"
           >
             {l.back}
           </button>
@@ -112,7 +116,9 @@ export function ListeningPage({ messages, locale, setLocale, onBack, onComplete 
               {l.officialTag}
             </span>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">{officialSets.map((item) => renderCard(item))}</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {officialSets.map((item) => renderCard(item, '#6C5CE7'))}
+          </div>
         </section>
 
         <section className="mb-10">
@@ -122,13 +128,15 @@ export function ListeningPage({ messages, locale, setLocale, onBack, onComplete 
               {l.dailyTag}
             </span>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">{dailySets.map((item) => renderCard(item))}</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {dailySets.map((item) => renderCard(item, '#FDCB6E'))}
+          </div>
         </section>
 
         <button
           type="button"
           onClick={handleComplete}
-          className="w-full rounded-xl bg-emerald-600 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          className="w-full rounded-xl bg-gradient-to-r from-[#6C5CE7] to-[#8B5CF6] py-3.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105"
         >
           {l.doneButton}
         </button>

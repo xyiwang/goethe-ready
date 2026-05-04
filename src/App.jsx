@@ -148,30 +148,6 @@ function App() {
     setPlan(null)
   }
 
-  const appFrame = (content) => {
-    if (!authEnabled || !session) return content
-    return (
-      <>
-        <div className="fixed right-3 top-3 z-50 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-sm backdrop-blur">
-          <p className="max-w-40 truncate font-medium text-slate-700">{session.user.email}</p>
-          {syncError ? (
-            <p className="mt-0.5 text-rose-600">{messages.app.syncFailed}</p>
-          ) : (
-            <p className="mt-0.5 text-emerald-700">{messages.app.syncOk}</p>
-          )}
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="mt-1 text-slate-500 underline underline-offset-2 hover:text-slate-700"
-          >
-            {messages.app.signOut}
-          </button>
-        </div>
-        {content}
-      </>
-    )
-  }
-
   if (authEnabled && !authReady) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-white text-sm font-medium text-slate-600">
@@ -192,7 +168,7 @@ function App() {
   }
 
   if (route === 'vocab' && plan) {
-    return appFrame(
+    return (
       <VocabPage
         messages={messages}
         locale={locale}
@@ -205,7 +181,7 @@ function App() {
   }
 
   if (route === 'grammar' && plan) {
-    return appFrame(
+    return (
       <GrammarPage
         messages={messages}
         locale={locale}
@@ -217,7 +193,7 @@ function App() {
   }
 
   if (route === 'progress' && plan) {
-    return appFrame(
+    return (
       <ProgressPage
         messages={messages}
         locale={locale}
@@ -230,7 +206,7 @@ function App() {
   }
 
   if (route === 'writing' && plan) {
-    return appFrame(
+    return (
       <WritingPage
         messages={messages}
         locale={locale}
@@ -242,7 +218,7 @@ function App() {
   }
 
   if (route === 'speaking' && plan) {
-    return appFrame(
+    return (
       <SpeakingPage
         messages={messages}
         locale={locale}
@@ -254,7 +230,7 @@ function App() {
   }
 
   if (route === 'dashboard' && plan) {
-    return appFrame(
+    return (
       <DashboardPage
         messages={messages}
         locale={locale}
@@ -263,6 +239,8 @@ function App() {
         days={plan.days}
         levelId={plan.levelId}
         levelLabel={plan.levelLabel}
+        syncOk={!syncError}
+        onSignOut={authEnabled ? handleSignOut : undefined}
         onBack={handleBackHome}
         onStartVocab={(count) => {
           setTodayVocabCount(count)
@@ -278,7 +256,7 @@ function App() {
   }
 
   if (route === 'listening' && plan) {
-    return appFrame(
+    return (
       <ListeningPage
         messages={messages}
         locale={locale}
@@ -289,7 +267,7 @@ function App() {
     )
   }
 
-  return appFrame(
+  return (
     <HomePage
       messages={messages}
       locale={locale}
