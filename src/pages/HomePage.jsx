@@ -140,9 +140,20 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
       style={{ background: '#FFFFFF', padding: 0, paddingBottom: 60, overflow: 'hidden', minHeight: '100vh' }}
     >
       <style>{`
+        .home-page-root {
+          --page-pad-x: 48px;
+          --section-pad-y: 60px;
+        }
         .home-page-root .hero-line-two {
           position: relative;
           display: inline-block;
+        }
+        .home-page-root .hero-title-main,
+        .home-page-root .hero-title-secondary {
+          font-size: 72px;
+          font-weight: 900;
+          line-height: 1.1;
+          letter-spacing: -2px;
         }
         .home-page-root .hero-line-two::after {
           content: '';
@@ -174,12 +185,97 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
           transform: translateY(-2px);
           box-shadow: 0 8px 24px rgba(108,92,231,0.3);
         }
+        .home-page-root .hero-layout {
+          display: flex;
+          flex-direction: row;
+          gap: 24px;
+          align-items: flex-start;
+        }
+        .home-page-root .home-hero-section {
+          min-height: 500px;
+        }
+        .home-page-root .hero-left {
+          flex: 1 1 55%;
+          position: relative;
+          z-index: 3;
+        }
+        .home-page-root .hero-right {
+          flex: 1 1 45%;
+          position: relative;
+          min-height: 560px;
+          z-index: 1;
+        }
+        .home-page-root .home-form-features {
+          display: flex;
+          flex-direction: row;
+          gap: 24px;
+          max-width: 980px;
+        }
+        .home-page-root .home-form-card {
+          width: 55%;
+        }
+        .home-page-root .home-feature-card {
+          width: 45%;
+        }
+        .home-page-root .home-user-count {
+          width: 55%;
+        }
+        .home-page-root .home-bottom-cards {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 20px;
+        }
+        @media (max-width: 900px) {
+          .home-page-root {
+            --page-pad-x: 20px;
+            --section-pad-y: 24px;
+          }
+          .home-page-root .hero-layout {
+            flex-direction: column;
+          }
+          .home-page-root .home-form-features {
+            flex-direction: column;
+          }
+          .home-page-root .home-form-card,
+          .home-page-root .home-feature-card {
+            width: 100%;
+          }
+          .home-page-root .home-user-count {
+            width: 100%;
+          }
+          .home-page-root .decorCircle {
+            display: none;
+          }
+          .home-page-root .previewCards {
+            display: none;
+          }
+          .home-page-root .hero-title-main,
+          .home-page-root .hero-title-secondary {
+            font-size: 52px;
+          }
+          .home-page-root .home-bottom-cards {
+            grid-template-columns: 1fr;
+          }
+          .home-page-root .hero-right {
+            min-height: 0;
+          }
+          .home-page-root .home-hero-section {
+            min-height: auto;
+          }
+        }
+        @media (max-width: 600px) {
+          .home-page-root .hero-title-main,
+          .home-page-root .hero-title-secondary {
+            font-size: 40px;
+          }
+        }
       `}</style>
 
       <div
+        className="home-nav"
         style={{
           height: '64px',
-          padding: '0 48px',
+          padding: '0 var(--page-pad-x)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -198,39 +294,27 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
       </div>
 
       <section
+        className="home-hero-section"
         style={{
           position: 'relative',
-          padding: '80px 48px 40px',
-          minHeight: 500,
+          padding: 'var(--section-pad-y) var(--page-pad-x) 40px',
         }}
       >
-        <div
-          style={{
-            width: '50%',
-            float: 'left',
-            position: 'relative',
-            zIndex: 3,
-          }}
-        >
+        <div className="hero-layout">
+        <div className="hero-left">
           <div
+            className="hero-title-main"
             style={{
-              fontSize: '72px',
-              fontWeight: 900,
               color: '#1a1a1a',
-              lineHeight: 1.1,
-              letterSpacing: '-2px',
             }}
           >
             {c.heroTitle1}
           </div>
           <div
+            className="hero-title-secondary"
             style={{
               marginTop: 4,
-              fontSize: '72px',
-              fontWeight: 900,
               color: '#6C5CE7',
-              lineHeight: 1.1,
-              letterSpacing: '-2px',
               display: 'flex',
               alignItems: 'center',
               gap: 12,
@@ -242,10 +326,10 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
           <div style={{ fontSize: '16px', color: '#636e72', marginTop: 24 }}>{c.tagline}</div>
 
           <div style={{ marginTop: 48 }}>
-            <div style={{ display: 'flex', gap: 24, maxWidth: 980 }}>
+            <div className="home-form-features">
               <div
+                className="home-form-card"
                 style={{
-                  width: '55%',
                   background: '#fff',
                   borderRadius: 24,
                   padding: '32px 40px',
@@ -277,7 +361,7 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
                   <span style={{ fontSize: '18px', fontWeight: 600 }}>{c.daysUnit}</span>
                 </div>
 
-                <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+                <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
                   {LEVEL_IDS.map((id) => {
                     const label = getLevelLabel(id)
                     const selected = levelId === id
@@ -326,8 +410,8 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
               </div>
 
               <div
+                className="home-feature-card"
                 style={{
-                  width: '45%',
                   background: '#fff',
                   borderRadius: 20,
                   padding: '20px 24px',
@@ -357,9 +441,9 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
             </div>
 
             <div
+              className="home-user-count"
               style={{
                 marginTop: 12,
-                width: '55%',
                 background: '#F3F0FF',
                 borderRadius: 16,
                 padding: '16px 20px',
@@ -371,17 +455,14 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
         </div>
 
         <div
+          className="hero-right"
           style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            width: '50%',
             height: '100%',
-            zIndex: 1,
           }}
           aria-hidden
         >
           <div
+            className="decorCircle"
             style={{
               position: 'absolute',
               width: 200,
@@ -395,6 +476,7 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
             }}
           />
           <div
+            className="decorCircle"
             style={{
               position: 'absolute',
               width: 150,
@@ -408,6 +490,7 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
             }}
           />
           <div
+            className="decorCircle"
             style={{
               position: 'absolute',
               width: 60,
@@ -420,7 +503,7 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
               animation: 'float1 3s ease-in-out infinite',
             }}
           />
-          <div style={{ position: 'absolute', right: 180, top: 250 }}>
+          <div className="decorCircle" style={{ position: 'absolute', right: 180, top: 250 }}>
             <svg width="120" height="40" viewBox="0 0 120 40">
               <path
                 d="M0,20 C20,0 40,40 60,20 C80,0 100,40 120,20"
@@ -432,6 +515,7 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
             </svg>
           </div>
           <div
+            className="decorCircle"
             style={{
               position: 'absolute',
               right: 300,
@@ -445,6 +529,7 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
           </div>
 
           <div
+            className="previewCards"
             style={{
               position: 'absolute',
               right: 40,
@@ -506,6 +591,7 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
           </div>
 
           <div
+            className="previewCards"
             style={{
               position: 'absolute',
               right: 40,
@@ -558,15 +644,14 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
           </div>
 
         </div>
-        <div style={{ clear: 'both' }} />
+        </div>
       </section>
 
       <section
+        className="home-bottom-cards"
         style={{
-          display: 'flex',
-          gap: 20,
           marginTop: 32,
-          padding: '0 48px',
+          padding: '0 var(--page-pad-x)',
         }}
       >
         <article
