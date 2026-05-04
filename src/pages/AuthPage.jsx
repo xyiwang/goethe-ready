@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
 import { supabase } from '../lib/supabase.js'
 
@@ -19,17 +19,32 @@ function mapAuthError(message, labels) {
  *   }
  *   locale: 'zh' | 'en'
  *   setLocale: (locale: 'zh' | 'en') => void
+ *   initialMode?: 'signin' | 'signup'
+ *   onBack?: () => void
+ *   onTryGuest?: () => void
  *   onAuthSuccess?: () => void
  * }} props
  */
-export function AuthPage({ messages, locale, setLocale, onAuthSuccess }) {
+export function AuthPage({
+  messages,
+  locale,
+  setLocale,
+  initialMode = 'signin',
+  onBack,
+  onTryGuest,
+  onAuthSuccess,
+}) {
   const { auth: a, home: h } = messages
-  const [mode, setMode] = useState(/** @type {'signin' | 'signup'} */ ('signin'))
+  const [mode, setMode] = useState(/** @type {'signin' | 'signup'} */ (initialMode))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    setMode(initialMode)
+  }, [initialMode])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -44,12 +59,16 @@ export function AuthPage({ messages, locale, setLocale, onAuthSuccess }) {
 
     try {
       if (mode === 'signup') {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data, error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
         })
         if (signUpError) throw signUpError
-        setNotice(a.signupSuccess)
+        if (data?.session) {
+          onAuthSuccess?.()
+        } else {
+          setNotice(a.signupSuccess)
+        }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: email.trim(),
@@ -78,7 +97,18 @@ export function AuthPage({ messages, locale, setLocale, onAuthSuccess }) {
         aria-hidden
       />
       <div className="mx-auto w-full max-w-md">
-        <div className="mb-8 flex items-start justify-end">
+        <div className="mb-8 flex items-start justify-between">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="text-sm font-semibold text-[var(--accent)] hover:underline"
+            >
+              ← {a.backToHome}
+            </button>
+          ) : (
+            <span />
+          )}
           <LanguageSwitch
             locale={locale}
             setLocale={setLocale}
@@ -196,6 +226,17 @@ export function AuthPage({ messages, locale, setLocale, onAuthSuccess }) {
             {mode === 'signin' ? a.switchToSignup : a.switchToSignin}
           </button>
         </div>
+        {onTryGuest && (
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={onTryGuest}
+              className="text-xs text-slate-500 underline underline-offset-4 hover:text-slate-700"
+            >
+              {a.tryGuest}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

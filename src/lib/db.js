@@ -44,6 +44,13 @@ export async function getPlan(userId) {
   return data ?? null
 }
 
+export async function deletePlan(userId) {
+  if (!userId) return null
+  const { error } = await supabase.from(PLAN_TABLE).delete().eq('user_id', userId)
+  if (error) throw error
+  return true
+}
+
 export async function saveCheckin(userId, date, completedTasks, vocabCount, isComplete) {
   if (!userId) return null
   const payload = {

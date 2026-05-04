@@ -105,25 +105,9 @@ function calcStreakFromCheckin(todayYmd, checkinMap) {
   return streak
 }
 
-function readEmailInitial(userId) {
-  if (typeof localStorage !== 'undefined') {
-    try {
-      const allKeys = Object.keys(localStorage)
-      for (const key of allKeys) {
-        if (!key.includes('auth-token')) continue
-        const token = readJson(key, null)
-        const email =
-          token?.user?.email ||
-          token?.currentSession?.user?.email ||
-          token?.session?.user?.email ||
-          token?.email
-        if (typeof email === 'string' && email.trim()) {
-          return email.trim().charAt(0).toUpperCase()
-        }
-      }
-    } catch {
-      // ignore
-    }
+function readUserInitial(userEmail, userId) {
+  if (typeof userEmail === 'string' && userEmail.trim()) {
+    return userEmail.trim().charAt(0).toUpperCase()
   }
   if (typeof userId === 'string' && userId.trim()) return userId.trim().charAt(0).toUpperCase()
   return 'U'
@@ -161,11 +145,19 @@ function calcGrammarAccuracyFromStorage() {
 /**
  * @param {{
  *   userId?: string | null
+ *   userEmail?: string
+ *   userName?: string
  *   days: string
  *   levelId: string
  *   onBack?: () => void
  *   syncOk?: boolean
  *   onSignOut?: () => void
+ *   onUpdateUserName?: (name: string) => Promise<void> | void
+ *   onUpdatePassword?: (password: string) => Promise<void> | void
+ *   onDeleteAccount?: () => Promise<void> | void
+ *   isGuestMode?: boolean
+ *   onRegisterNow?: () => void
+ *   onEditPlan?: () => void
  *   onStartVocab?: (count: number) => void
  *   onStartGrammar?: () => void
  *   onStartListening?: () => void
@@ -176,12 +168,20 @@ function calcGrammarAccuracyFromStorage() {
 export function DashboardPage(props) {
   const {
     userId = null,
+    userEmail = '',
+    userName = '',
     locale = 'zh',
     days,
     levelId,
     onBack,
     syncOk = true,
     onSignOut,
+    onUpdateUserName,
+    onUpdatePassword,
+    onDeleteAccount,
+    isGuestMode = false,
+    onRegisterNow,
+    onEditPlan,
     onViewProgress,
     onStartVocab,
     onStartGrammar,
@@ -214,6 +214,18 @@ export function DashboardPage(props) {
     return records?.[todayYmd] || null
   })
   const [checkinBanner, setCheckinBanner] = useState('')
+  const [accountOpen, setAccountOpen] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [nameInput, setNameInput] = useState(userName || '')
+  const [passwordInput, setPasswordInput] = useState('')
+  const [passwordConfirmInput, setPasswordConfirmInput] = useState('')
+  const [accountNotice, setAccountNotice] = useState('')
+  const [accountError, setAccountError] = useState('')
+  const [accountBusy, setAccountBusy] = useState(false)
+
+  useEffect(() => {
+    setNameInput(userName || '')
+  }, [userName])
 
   useEffect(() => {
     const next = {}
@@ -273,7 +285,7 @@ export function DashboardPage(props) {
   }, [])
   const vocabProgressPct = Math.max(0, Math.min(100, Math.round((vocabMastered / 2704) * 100)))
 
-  const userInitial = readEmailInitial(userId)
+  const userInitial = readUserInitial(userEmail, userId)
 
   const taskDescription = {
     vocab: String(t('dashboard.vocabDesc')).replace('{n}', String(todayPlan.todayVocab || 0)),
@@ -333,6 +345,68 @@ export function DashboardPage(props) {
     }
   }
 
+  const handleSaveUserName = async () => {
+    if (!onUpdateUserName) return
+    const trimmed = nameInput.trim()
+    if (!trimmed) {
+      setAccountError(String(t('dashboard.accountNameRequired')))
+      setAccountNotice('')
+      return
+    }
+    setAccountBusy(true)
+    setAccountError('')
+    setAccountNotice('')
+    try {
+      await onUpdateUserName(trimmed)
+      setAccountNotice(String(t('dashboard.accountNameSaved')))
+    } catch {
+      setAccountError(String(t('dashboard.accountActionFailed')))
+    } finally {
+      setAccountBusy(false)
+    }
+  }
+
+  const handleSavePassword = async () => {
+    if (!onUpdatePassword) return
+    if (passwordInput.length < 6) {
+      setAccountError(String(t('dashboard.accountPasswordTooShort')))
+      setAccountNotice('')
+      return
+    }
+    if (passwordInput !== passwordConfirmInput) {
+      setAccountError(String(t('dashboard.accountPasswordMismatch')))
+      setAccountNotice('')
+      return
+    }
+    setAccountBusy(true)
+    setAccountError('')
+    setAccountNotice('')
+    try {
+      await onUpdatePassword(passwordInput)
+      setPasswordInput('')
+      setPasswordConfirmInput('')
+      setAccountNotice(String(t('dashboard.accountPasswordUpdated')))
+    } catch {
+      setAccountError(String(t('dashboard.accountActionFailed')))
+    } finally {
+      setAccountBusy(false)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!onDeleteAccount) return
+    setAccountBusy(true)
+    setAccountError('')
+    setAccountNotice('')
+    try {
+      await onDeleteAccount()
+    } catch {
+      setAccountError(String(t('dashboard.accountDeleteFailed')))
+      setShowDeleteConfirm(false)
+      setAccountBusy(false)
+    }
+  }
+
   return (
     <div style={{ background: '#F8F8FF', minHeight: '100vh', paddingBottom: 24 }}>
       <nav
@@ -367,7 +441,7 @@ export function DashboardPage(props) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
           <div style={{ background: '#FFF3E0', borderRadius: 20, padding: '6px 14px' }}>
             <span style={{ color: '#FF6B35', fontWeight: 600, fontSize: 13 }}>
               🔥 {streakDays} {t('dashboard.streak')}
@@ -382,27 +456,19 @@ export function DashboardPage(props) {
           <span style={{ fontSize: 12, color: syncOk ? '#16A34A' : '#D97706', fontWeight: 600 }}>
             {syncOk ? t('dashboard.syncOkSmall') : t('dashboard.syncIssue')}
           </span>
-          {onSignOut && (
-            <button
-              type="button"
-              onClick={onSignOut}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#636e72',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                textUnderlineOffset: 2,
-                padding: 0,
-              }}
-            >
-              {t('dashboard.signOutNav')}
-            </button>
-          )}
-          <div
+          <button
+            type="button"
+            onClick={() => {
+              setAccountOpen((prev) => !prev)
+              setAccountError('')
+              setAccountNotice('')
+            }}
+            aria-label={t('dashboard.accountOpenPanel')}
             style={{
+              border: 'none',
+              padding: 0,
+              background: 'transparent',
+              cursor: 'pointer',
               width: 36,
               height: 36,
               borderRadius: '50%',
@@ -415,9 +481,199 @@ export function DashboardPage(props) {
             }}
           >
             {userInitial}
-          </div>
+          </button>
+          {accountOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 48,
+                right: 0,
+                width: 320,
+                background: '#fff',
+                border: '1px solid #E5E7EB',
+                borderRadius: 12,
+                padding: 14,
+                boxShadow: '0 12px 28px rgba(0,0,0,0.12)',
+                zIndex: 30,
+              }}
+            >
+              <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 10 }}>{userEmail || '-'}</div>
+
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                {t('dashboard.accountUserName')}
+              </div>
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                placeholder={t('dashboard.accountUserNamePlaceholder')}
+                style={{
+                  width: '100%',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  fontSize: 13,
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleSaveUserName}
+                disabled={accountBusy || !onUpdateUserName}
+                style={{
+                  marginTop: 8,
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  background: '#6C5CE7',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: accountBusy ? 'not-allowed' : 'pointer',
+                  opacity: accountBusy ? 0.6 : 1,
+                }}
+              >
+                {t('dashboard.accountSaveName')}
+              </button>
+
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginTop: 12, marginBottom: 6 }}>
+                {t('dashboard.accountChangePassword')}
+              </div>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder={t('dashboard.accountNewPassword')}
+                minLength={6}
+                style={{
+                  width: '100%',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  fontSize: 13,
+                  outline: 'none',
+                }}
+              />
+              <input
+                type="password"
+                value={passwordConfirmInput}
+                onChange={(e) => setPasswordConfirmInput(e.target.value)}
+                placeholder={t('dashboard.accountConfirmPassword')}
+                minLength={6}
+                style={{
+                  width: '100%',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  fontSize: 13,
+                  outline: 'none',
+                  marginTop: 8,
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleSavePassword}
+                disabled={accountBusy || !onUpdatePassword}
+                style={{
+                  marginTop: 8,
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  background: '#111827',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: accountBusy ? 'not-allowed' : 'pointer',
+                  opacity: accountBusy ? 0.6 : 1,
+                }}
+              >
+                {t('dashboard.accountUpdatePassword')}
+              </button>
+
+              {accountNotice && (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#15803D', fontWeight: 600 }}>{accountNotice}</div>
+              )}
+              {accountError && (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#DC2626', fontWeight: 600 }}>{accountError}</div>
+              )}
+
+              <div style={{ height: 1, background: '#E5E7EB', margin: '12px 0' }} />
+              <button
+                type="button"
+                onClick={onSignOut}
+                disabled={accountBusy || !onSignOut}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#6B7280',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: accountBusy ? 'not-allowed' : 'pointer',
+                  padding: 0,
+                }}
+              >
+                {t('dashboard.signOutNav')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={accountBusy || !onDeleteAccount}
+                style={{
+                  marginTop: 10,
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#DC2626',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: accountBusy ? 'not-allowed' : 'pointer',
+                  padding: 0,
+                }}
+              >
+                {t('dashboard.accountDelete')}
+              </button>
+            </div>
+          )}
         </div>
       </nav>
+
+      {isGuestMode && (
+        <div
+          style={{
+            margin: '12px 24px',
+            borderRadius: 12,
+            background: '#FFF9E6',
+            border: '1px solid #FDE68A',
+            padding: '10px 12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <span style={{ fontSize: 12, color: '#92400E' }}>
+            {t('dashboard.guestModeBanner')}
+          </span>
+          {onRegisterNow && (
+            <button
+              type="button"
+              onClick={onRegisterNow}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#6C5CE7',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {t('dashboard.registerNow')}
+            </button>
+          )}
+        </div>
+      )}
 
       <section style={{ padding: '24px 24px 0' }}>
         {onBack && (
@@ -440,25 +696,44 @@ export function DashboardPage(props) {
         )}
         <div style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a' }}>{t('dashboard.greeting')}</div>
         <div style={{ fontSize: 14, color: '#636e72', marginTop: 4 }}>{t('dashboard.greetingSub')}</div>
-        {onViewProgress && (
-          <button
-            type="button"
-            onClick={onViewProgress}
-            style={{
-              marginTop: 12,
-              border: '1px solid #6C5CE7',
-              background: '#fff',
-              color: '#6C5CE7',
-              fontSize: 13,
-              fontWeight: 600,
-              borderRadius: 12,
-              padding: '8px 14px',
-              cursor: 'pointer',
-            }}
-          >
-            {t('dashboard.viewProgress')}
-          </button>
-        )}
+        <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {onViewProgress && (
+            <button
+              type="button"
+              onClick={onViewProgress}
+              style={{
+                border: '1px solid #6C5CE7',
+                background: '#fff',
+                color: '#6C5CE7',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 12,
+                padding: '8px 14px',
+                cursor: 'pointer',
+              }}
+            >
+              {t('dashboard.viewProgress')}
+            </button>
+          )}
+          {onEditPlan && (
+            <button
+              type="button"
+              onClick={onEditPlan}
+              style={{
+                border: '1px solid #DDD6FE',
+                background: '#fff',
+                color: '#6C5CE7',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 12,
+                padding: '8px 14px',
+                cursor: 'pointer',
+              }}
+            >
+              {t('dashboard.editPlan')}
+            </button>
+          )}
+        </div>
       </section>
 
       <section
@@ -823,6 +1098,61 @@ export function DashboardPage(props) {
           <div style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>{t('dashboard.accuracy')}</div>
         </div>
       </section>
+      {showDeleteConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 40,
+          }}
+        >
+          <div style={{ width: 420, maxWidth: '92vw', background: '#fff', borderRadius: 14, padding: 18 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{t('dashboard.accountDeleteTitle')}</div>
+            <div style={{ marginTop: 8, fontSize: 13, color: '#4B5563', lineHeight: 1.5 }}>
+              {t('dashboard.accountDeleteConfirm')}
+            </div>
+            <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={accountBusy}
+                style={{
+                  border: '1px solid #D1D5DB',
+                  background: '#fff',
+                  borderRadius: 10,
+                  padding: '8px 14px',
+                  fontSize: 12,
+                  cursor: accountBusy ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {t('dashboard.accountCancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={accountBusy}
+                style={{
+                  border: 'none',
+                  background: '#DC2626',
+                  color: '#fff',
+                  borderRadius: 10,
+                  padding: '8px 14px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: accountBusy ? 'not-allowed' : 'pointer',
+                  opacity: accountBusy ? 0.7 : 1,
+                }}
+              >
+                {accountBusy ? t('dashboard.accountDeleting') : t('dashboard.accountDeleteConfirmBtn')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,9 +1,4 @@
-import { useState } from 'react'
 import { LanguageSwitch } from '../components/LanguageSwitch.jsx'
-import { PLAN_STORAGE_KEY, generatePlan, todayYmd } from '../utils/planGenerator.js'
-import { savePlan } from '../lib/db.js'
-
-const LEVEL_IDS = ['beginner', 'a1a2', 'b1']
 
 /**
  * @param {{
@@ -11,10 +6,22 @@ const LEVEL_IDS = ['beginner', 'a1a2', 'b1']
  *   locale: 'zh' | 'en'
  *   setLocale: (locale: 'zh' | 'en') => void
  *   userId?: string | null
- *   onNavigateToDashboard: (payload: { days: string; levelId: string; levelLabel: string }) => void
+ *   authEnabled?: boolean
+ *   onOpenSignIn?: () => void
+ *   onOpenSignUp?: () => void
+ *   onOpenGuestSetup?: () => void
  * }} props
  */
-export function HomePage({ messages, locale, setLocale, userId = null, onNavigateToDashboard }) {
+export function HomePage({
+  messages,
+  locale,
+  setLocale,
+  userId = null,
+  authEnabled = false,
+  onOpenSignIn,
+  onOpenSignUp,
+  onOpenGuestSetup,
+}) {
   const { home: h } = messages
   const language = locale === 'en' ? 'en' : 'zh'
   const content = {
@@ -26,8 +33,11 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
       daysUnit: '天',
       levelLabel: '当前水平',
       levels: ['零基础', '已过A1/A2', 'B1冲高分'],
-      startBtn: '开始我的备考计划 →',
+      startBtn: '免费开始备考 →',
+      loginBtn: '已有账号？去登录',
+      guestTry: '先体验一下，不注册',
       userCount: '已有 2,847 人在备考',
+      samplePreviewTag: '示例预览',
       feature1Title: '智能备考计划',
       feature1Desc: '根据你的时间和水平自动生成',
       feature2Title: '2704个官方词汇',
@@ -49,6 +59,8 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
       streakTitle: '连续打卡',
       guest: '游客',
       synced: '云端同步已开启',
+      signIn: '登录',
+      signUp: '注册',
       previewVocab: '词汇：32个新词',
       previewGrammar: '语法：Konjunktiv II',
       previewWriting: '写作：邮件练习',
@@ -62,8 +74,11 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
       daysUnit: 'days',
       levelLabel: 'Current level',
       levels: ['Complete beginner', 'Finished A1/A2', 'B1 — aiming high'],
-      startBtn: 'Build my study plan →',
+      startBtn: 'Start for Free →',
+      loginBtn: 'Already have an account? Sign in',
+      guestTry: 'Try first, no signup',
       userCount: '2,847 learners already studying',
+      samplePreviewTag: 'Sample Preview',
       feature1Title: 'Smart Study Plan',
       feature1Desc: 'Auto-generated based on your time and level',
       feature2Title: '2704 Official Words',
@@ -85,6 +100,8 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
       streakTitle: 'Check-in streak',
       guest: 'Guest',
       synced: 'Cloud Sync On',
+      signIn: 'Sign in',
+      signUp: 'Sign up',
       previewVocab: 'Vocab: 32 new words',
       previewGrammar: 'Grammar: Konjunktiv II',
       previewWriting: 'Writing: Email practice',
@@ -92,48 +109,6 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
     },
   }
   const c = language === 'zh' ? content.zh : content.en
-  const [days, setDays] = useState('')
-  const [levelId, setLevelId] = useState(null)
-
-  const daysTrim = days.trim()
-  const daysNum = parseInt(daysTrim, 10)
-  const daysValid = daysTrim !== '' && !Number.isNaN(daysNum) && daysNum >= 0
-  const canSubmit = daysValid && levelId != null
-
-  const getLevelLabel = (id) => {
-    const idx = LEVEL_IDS.indexOf(id)
-    if (idx >= 0 && c.levels[idx]) return c.levels[idx]
-    return h.levels[id] ?? ''
-  }
-
-  const handleStart = async () => {
-    if (!canSubmit || !levelId) return
-    const generatedPlan = generatePlan(daysNum, levelId)
-    const startDate = todayYmd()
-    const payload = {
-      days: daysTrim,
-      level: levelId,
-      levelLabel: getLevelLabel(levelId),
-      plan: generatedPlan,
-      startDate,
-    }
-    localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(payload))
-    if (userId) {
-      try {
-        await savePlan(userId, daysNum, levelId, startDate)
-      } catch {
-        // keep local cache even if cloud write fails
-      }
-    }
-    onNavigateToDashboard({
-      days: daysTrim,
-      levelId,
-      levelLabel: getLevelLabel(levelId),
-      plan: generatedPlan,
-      startDate,
-    })
-  }
-
   return (
     <div
       className="home-page-root"
@@ -192,7 +167,7 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
           align-items: flex-start;
         }
         .home-page-root .home-hero-section {
-          min-height: 500px;
+          min-height: auto;
         }
         .home-page-root .hero-left {
           flex: 1 1 55%;
@@ -202,7 +177,7 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
         .home-page-root .hero-right {
           flex: 1 1 45%;
           position: relative;
-          min-height: 560px;
+          min-height: auto;
           z-index: 1;
         }
         .home-page-root .home-form-features {
@@ -283,6 +258,42 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
       >
         <div style={{ fontSize: 20, fontWeight: 700, color: '#6C5CE7' }}>GoetheReady</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {authEnabled && !userId && (
+            <>
+              <button
+                type="button"
+                onClick={onOpenSignIn}
+                style={{
+                  border: '1px solid #DDD6FE',
+                  background: '#fff',
+                  color: '#6C5CE7',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                }}
+              >
+                {c.signIn ?? '登录'}
+              </button>
+              <button
+                type="button"
+                onClick={onOpenSignUp}
+                style={{
+                  border: 'none',
+                  background: '#6C5CE7',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                }}
+              >
+                {c.signUp ?? '注册'}
+              </button>
+            </>
+          )}
           <LanguageSwitch
             locale={locale}
             setLocale={setLocale}
@@ -325,132 +336,65 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
           </div>
           <div style={{ fontSize: '16px', color: '#636e72', marginTop: 24 }}>{c.tagline}</div>
 
-          <div style={{ marginTop: 48 }}>
-            <div className="home-form-features">
-              <div
-                className="home-form-card"
-                style={{
-                  background: '#fff',
-                  borderRadius: 24,
-                  padding: '32px 40px',
-                  boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: '18px', fontWeight: 600 }}>{c.daysLabel}</span>
-                  <input
-                    id="exam-days"
-                    type="text"
-                    inputMode="numeric"
-                    value={days}
-                    onChange={(e) => setDays(e.target.value)}
-                    aria-label={h.daysLabel}
-                    style={{
-                      width: 80,
-                      textAlign: 'center',
-                      fontSize: '24px',
-                      fontWeight: 700,
-                      border: 'none',
-                      borderBottom: '3px solid #6C5CE7',
-                      outline: 'none',
-                      color: '#6C5CE7',
-                      background: 'transparent',
-                      paddingBottom: 4,
-                    }}
-                  />
-                  <span style={{ fontSize: '18px', fontWeight: 600 }}>{c.daysUnit}</span>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
-                  {LEVEL_IDS.map((id) => {
-                    const label = getLevelLabel(id)
-                    const selected = levelId === id
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => setLevelId(id)}
-                        style={{
-                          border: selected ? '2px solid #6C5CE7' : '2px solid #E0E0E0',
-                          background: selected ? '#F3F0FF' : '#fff',
-                          color: selected ? '#6C5CE7' : '#636e72',
-                          fontWeight: selected ? 600 : 500,
-                          padding: '10px 20px',
-                          borderRadius: 12,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {label}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleStart}
-                  disabled={!canSubmit}
-                  className="cta-btn"
-                  style={{
-                    width: '100%',
-                    marginTop: 24,
-                    background: 'linear-gradient(135deg, #6C5CE7 0%, #8B5CF6 100%)',
-                    color: '#fff',
-                    fontSize: 16,
-                    fontWeight: 600,
-                    padding: '16px',
-                    borderRadius: 16,
-                    border: 'none',
-                    cursor: canSubmit ? 'pointer' : 'not-allowed',
-                    opacity: canSubmit ? 1 : 0.4,
-                  }}
-                >
-                  {c.startBtn}
-                </button>
-              </div>
-
-              <div
-                className="home-feature-card"
-                style={{
-                  background: '#fff',
-                  borderRadius: 20,
-                  padding: '20px 24px',
-                  boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                <div style={{ paddingBottom: 14, borderBottom: '1px solid #ECECEC' }}>
-                  <div style={{ fontSize: '32px' }}>🧠</div>
-                  <div style={{ marginTop: 8, fontSize: '16px', fontWeight: 700, color: '#1a1a1a' }}>{c.feature1Title}</div>
-                  <div style={{ marginTop: 4, fontSize: '13px', color: '#636e72' }}>{c.feature1Desc}</div>
-                </div>
-
-                <div style={{ paddingTop: 14, paddingBottom: 14, borderBottom: '1px solid #ECECEC' }}>
-                  <div style={{ fontSize: '32px' }}>📚</div>
-                  <div style={{ marginTop: 8, fontSize: '16px', fontWeight: 700, color: '#1a1a1a' }}>{c.feature2Title}</div>
-                  <div style={{ marginTop: 4, fontSize: '13px', color: '#636e72' }}>{c.feature2Desc}</div>
-                </div>
-
-                <div style={{ paddingTop: 14 }}>
-                  <div style={{ fontSize: '32px' }}>🤖</div>
-                  <div style={{ marginTop: 8, fontSize: '16px', fontWeight: 700, color: '#1a1a1a' }}>{c.feature3Title}</div>
-                  <div style={{ marginTop: 4, fontSize: '13px', color: '#636e72' }}>{c.feature3Desc}</div>
-                </div>
-              </div>
-            </div>
-
-            <div
-              className="home-user-count"
+          <div style={{ marginTop: 48, maxWidth: 560 }}>
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenSignUp) onOpenSignUp()
+                else onOpenGuestSetup?.()
+              }}
+              className="cta-btn"
               style={{
-                marginTop: 12,
-                background: '#F3F0FF',
+                width: '100%',
+                background: 'linear-gradient(135deg, #6C5CE7 0%, #8B5CF6 100%)',
+                color: '#fff',
+                fontSize: 16,
+                fontWeight: 700,
+                padding: '16px',
                 borderRadius: 16,
-                padding: '16px 20px',
+                border: 'none',
+                cursor: 'pointer',
               }}
             >
-              <span style={{ fontSize: '14px', color: '#6C5CE7' }}>📊 {c.userCount}</span>
-            </div>
+              {c.startBtn}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenSignIn) onOpenSignIn()
+                else onOpenGuestSetup?.()
+              }}
+              style={{
+                width: '100%',
+                marginTop: 12,
+                background: '#fff',
+                color: '#6C5CE7',
+                fontSize: 15,
+                fontWeight: 600,
+                padding: '14px',
+                borderRadius: 14,
+                border: '2px solid #DDD6FE',
+                cursor: 'pointer',
+              }}
+            >
+              {c.loginBtn}
+            </button>
+            <button
+              type="button"
+              onClick={onOpenGuestSetup}
+              style={{
+                marginTop: 12,
+                background: 'transparent',
+                border: 'none',
+                color: '#6B7280',
+                fontSize: 13,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+              }}
+            >
+              {c.guestTry}
+            </button>
           </div>
         </div>
 
@@ -543,6 +487,21 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
               zIndex: 2,
             }}
           >
+            <span
+              style={{
+                position: 'absolute',
+                left: 12,
+                top: -10,
+                fontSize: '11px',
+                color: '#6B7280',
+                background: '#E5E7EB',
+                borderRadius: 999,
+                padding: '4px 8px',
+                fontWeight: 600,
+              }}
+            >
+              {c.samplePreviewTag}
+            </span>
             <div style={{ fontSize: '13px', color: '#636e72', fontWeight: 600 }}>{c.taskPreview}</div>
             <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -590,59 +549,6 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
             </div>
           </div>
 
-          <div
-            className="previewCards"
-            style={{
-              position: 'absolute',
-              right: 40,
-              top: 390,
-              width: 220,
-              zIndex: 2,
-            }}
-          >
-            <div
-              style={{
-                background: '#fff',
-                borderRadius: 16,
-                padding: '16px 20px',
-                boxShadow: '0 4px 16px rgba(108,92,231,0.1)',
-                marginTop: 12,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <div style={{ fontSize: '28px' }}>📚</div>
-              <div>
-                <div style={{ fontSize: '12px', color: '#636e72' }}>{c.todayVocab}</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: '#6C5CE7' }}>{c.todayVocabCount}</div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #6C5CE7, #8B5CF6)',
-                borderRadius: 16,
-                padding: '16px 20px',
-                marginTop: 12,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)' }}>
-                  {c.streakTitle}
-                </div>
-                <div style={{ fontSize: '13px', color: '#fff', fontWeight: 600 }}>{c.keepGoing}</div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '28px', fontWeight: 900, color: '#FDCB6E', lineHeight: 1 }}>🔥 7</div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)' }}>{c.daysUnit}</div>
-              </div>
-            </div>
-          </div>
-
         </div>
         </div>
       </section>
@@ -650,7 +556,7 @@ export function HomePage({ messages, locale, setLocale, userId = null, onNavigat
       <section
         className="home-bottom-cards"
         style={{
-          marginTop: 32,
+          marginTop: 48,
           padding: '0 var(--page-pad-x)',
         }}
       >
