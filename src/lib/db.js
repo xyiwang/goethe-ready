@@ -108,3 +108,45 @@ export async function getVocabProgress(userId) {
   if (error) throw error
   return data ?? null
 }
+export async function getWordReviews(userId) {
+  const { data, error } = await supabase
+    .from('word_reviews')
+    .select('*')
+    .eq('user_id', userId)
+  if (error) throw error
+  return data ?? []
+}
+
+export async function upsertWordReview(userId, wordId, fields) {
+  const { error } = await supabase
+    .from('word_reviews')
+    .upsert(
+      { user_id: userId, word_id: String(wordId), ...fields },
+      { onConflict: 'user_id,word_id' }
+    )
+  if (error) throw error
+}
+
+export async function getTodayReviewCount(userId) {
+  if (!userId) return 0
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const { count, error } = await supabase
+    .from('word_reviews')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('reviewed_at', startOfToday.toISOString())
+  if (error) throw error
+  return count ?? 0
+}
+
+export async function getMatureWordCount(userId) {
+  if (!userId) return 0
+  const { count, error } = await supabase
+    .from('word_reviews')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('state', 2)
+  if (error) throw error
+  return count ?? 0
+}

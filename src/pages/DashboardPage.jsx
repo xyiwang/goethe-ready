@@ -3,6 +3,7 @@ import { PLAN_STORAGE_KEY, generatePlan, getDayIndex, getTodayTasks } from '../u
 import * as checkin from '../utils/checkin.js'
 import zh from '../i18n/zh.js'
 import en from '../i18n/en.js'
+import { getMatureWordCount, getTodayReviewCount } from '../lib/db.js'
 
 const TASKS_STORAGE_PREFIX = 'tasks_'
 const CHECKIN_STORAGE_PREFIX = 'checkin_'
@@ -161,6 +162,7 @@ function calcGrammarAccuracyFromStorage() {
  *   onStartVocab?: (count: number) => void
  *   onStartGrammar?: () => void
  *   onStartListening?: () => void
+ *   onViewAnalytics?: () => void
  *   onStartWriting?: () => void
  *   onStartSpeaking?: () => void
  * }} props
@@ -186,6 +188,7 @@ export function DashboardPage(props) {
     onStartVocab,
     onStartGrammar,
     onStartListening,
+    onViewAnalytics,
     onStartWriting,
     onStartSpeaking,
   } = props
@@ -222,6 +225,8 @@ export function DashboardPage(props) {
   const [accountNotice, setAccountNotice] = useState('')
   const [accountError, setAccountError] = useState('')
   const [accountBusy, setAccountBusy] = useState(false)
+  const [todayVocabReal, setTodayVocabReal] = useState(0)
+  const [matureWordCount, setMatureWordCount] = useState(0)
 
   useEffect(() => {
     setNameInput(userName || '')
@@ -236,6 +241,29 @@ export function DashboardPage(props) {
       // ignore storage failures
     }
   }, [done, todayYmd])
+
+  useEffect(() => {
+    if (!userId) {
+      setTodayVocabReal(0)
+      setMatureWordCount(0)
+      return
+    }
+    let active = true
+    Promise.all([getTodayReviewCount(userId), getMatureWordCount(userId)])
+      .then(([todayCount, matureCount]) => {
+        if (!active) return
+        setTodayVocabReal(Number(todayCount || 0))
+        setMatureWordCount(Number(matureCount || 0))
+      })
+      .catch(() => {
+        if (!active) return
+        setTodayVocabReal(0)
+        setMatureWordCount(0)
+      })
+    return () => {
+      active = false
+    }
+  }, [userId])
 
   const storedPlan = useMemo(() => readJson(PLAN_STORAGE_KEY, null), [])
   const effectiveDays = String(storedPlan?.days ?? days ?? '80')
@@ -275,15 +303,8 @@ export function DashboardPage(props) {
   const expPoints = completedTasksCumulative * 100
 
   const doneCount = TASK_CONFIG.filter((task) => Boolean(done[task.id])).length
-  const todayCheckinRecord = checkinMap.get(todayYmd)
-  const todayVocab = Number(todayCheckinRecord?.vocab_count ?? 0) || 0
   const grammarAccuracy = useMemo(() => calcGrammarAccuracyFromStorage(), [])
-
-  const vocabMastered = useMemo(() => {
-    const arr = readJson('vocab_mastered', [])
-    return Array.isArray(arr) ? arr.length : 0
-  }, [])
-  const vocabProgressPct = Math.max(0, Math.min(100, Math.round((vocabMastered / 2704) * 100)))
+  const vocabProgressPct = Math.max(0, Math.min(100, Math.round((matureWordCount / 2704) * 100)))
 
   const userInitial = readUserInitial(userEmail, userId)
 
@@ -733,6 +754,24 @@ export function DashboardPage(props) {
               {t('dashboard.editPlan')}
             </button>
           )}
+          {onViewAnalytics && (
+            <button
+              type="button"
+              onClick={onViewAnalytics}
+              style={{
+                border: '1px solid #FCD34D',
+                background: '#FFFBEB',
+                color: '#B45309',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 12,
+                padding: '8px 14px',
+                cursor: 'pointer',
+              }}
+            >
+              {t('dashboard.viewAnalytics')}
+            </button>
+          )}
         </div>
       </section>
 
@@ -1080,7 +1119,7 @@ export function DashboardPage(props) {
         }}
       >
         <div style={{ background: '#fff', borderRadius: 16, padding: 16, textAlign: 'center', border: '1px solid #f0f0f0' }}>
-          <div style={{ fontSize: 28, fontWeight: 900, color: '#6C5CE7' }}>{todayVocab}</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: '#6C5CE7' }}>{todayVocabReal}</div>
           <div style={{ fontSize: 12, color: '#636e72', marginTop: 4 }}>{t('dashboard.vocabCount')}</div>
         </div>
         <div style={{ background: '#fff', borderRadius: 16, padding: 16, textAlign: 'center', border: '1px solid #f0f0f0' }}>

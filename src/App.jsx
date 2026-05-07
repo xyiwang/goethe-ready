@@ -7,6 +7,7 @@ import { ProgressPage } from './pages/ProgressPage.jsx'
 import { WritingPage } from './pages/WritingPage.jsx'
 import { SpeakingPage } from './pages/SpeakingPage.jsx'
 import { ListeningPage } from './pages/ListeningPage.jsx'
+import { AnalyticsPage } from './pages/AnalyticsPage.jsx'
 import { AuthPage } from './pages/AuthPage.jsx'
 import { SetupPage } from './pages/SetupPage.jsx'
 import { getMessages } from './i18n/index.js'
@@ -265,6 +266,8 @@ function App() {
     if (!supabase) return
     if (userId) {
       await deletePlan(userId)
+      await supabase.from('word_reviews').delete().eq('user_id', userId)
+      await supabase.rpc('delete_current_user')
     }
     if (typeof window !== 'undefined') {
       try {
@@ -384,6 +387,18 @@ function App() {
     )
   }
 
+  if (route === 'analytics' && plan) {
+    return (
+      <AnalyticsPage
+        messages={messages}
+        locale={locale}
+        setLocale={setLocale}
+        userId={userId}
+        onBack={() => setRoute('dashboard')}
+      />
+    )
+  }
+
   if (route === 'writing' && plan) {
     return (
       <WritingPage
@@ -435,6 +450,7 @@ function App() {
         onStartSpeaking={() => setRoute('speaking')}
         onStartListening={() => setRoute('listening')}
         onViewProgress={() => setRoute('progress')}
+        onViewAnalytics={() => setRoute('analytics')}
         onEditPlan={() => setRoute('setup')}
         isGuestMode={!userId}
         onRegisterNow={() => openAuth('signup')}
